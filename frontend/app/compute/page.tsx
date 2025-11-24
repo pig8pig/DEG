@@ -59,6 +59,37 @@ export default function ComputePage() {
     }
   };
 
+  const generateRandomJob = async () => {
+    // Generate random runtime between 0.5 and 10 hours
+    const randomRuntime = Math.round((Math.random() * 9.5 + 0.5) * 10) / 10;
+    // Generate random priority between 1 and 5
+    const randomPriority = Math.floor(Math.random() * 5) + 1;
+    
+    setRuntime(randomRuntime);
+    setPriority(randomPriority);
+    
+    // Auto-submit the random job
+    setLoading(true);
+    try {
+      await fetch('http://localhost:8000/jobs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          estimated_runtime_hrs: randomRuntime,
+          priority: randomPriority,
+          status: "PENDING"
+        }),
+      });
+      await fetchJobs();
+    } catch (error) {
+      console.error("Failed to submit random job:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8">
       <div className="max-w-6xl mx-auto">
@@ -103,6 +134,15 @@ export default function ComputePage() {
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors disabled:opacity-50"
               >
                 {loading ? 'Submitting...' : 'Submit Job'}
+              </button>
+              
+              <button
+                type="button"
+                onClick={generateRandomJob}
+                disabled={loading}
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition-colors disabled:opacity-50"
+              >
+                {loading ? 'Generating...' : 'Generate Random Job'}
               </button>
             </form>
           </div>

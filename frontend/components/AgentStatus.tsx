@@ -50,7 +50,7 @@ const AgentStatus: React.FC<AgentStatusProps> = ({ data }) => {
                     <Cpu size={16} /> Compute Load
                   </span>
                   <span className="font-mono font-medium text-gray-200">
-                    {region.total_used.toLocaleString()} / {region.total_capacity.toLocaleString()} units
+                    {(region.total_used || 0).toLocaleString()} / {(region.total_capacity || 0).toLocaleString()} units
                   </span>
                 </div>
                 <div className="w-full bg-gray-700/50 rounded-full h-3 overflow-hidden">
@@ -67,11 +67,11 @@ const AgentStatus: React.FC<AgentStatusProps> = ({ data }) => {
               <div>
                 <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Top Local Providers</h4>
                 <div className="space-y-2">
-                  {region.lowest_cost_options.slice(0, 3).map((opt: any, i: number) => (
+                  {(region.lowest_cost_options || []).slice(0, 3).map((opt: any, i: number) => (
                     <div key={i} className="flex justify-between items-center p-3 rounded-xl bg-gray-900/50 border border-gray-700/50 hover:bg-gray-700/30 transition-colors">
                       <div className="flex items-center gap-3">
                         <div className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]"></div>
-                        <span className="text-sm font-medium text-gray-200">{opt.agent_name.split(' Local')[1]}</span>
+                        <span className="text-sm font-medium text-gray-200">{opt.agent_name.replace(' Local', '')}</span>
                       </div>
                       <div className="flex gap-4 text-sm">
                         <div className="flex flex-col items-end">
