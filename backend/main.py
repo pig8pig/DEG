@@ -28,17 +28,39 @@ simulation_running = False
 
 def setup_system():
     """
-    Initializes the agent hierarchy.
+    Initializes the agent hierarchy with city-based agents.
+    Uses all UK cities available in the Beckn API.
     """
-    regions = ["NA West", "EU Central", "MENA", "OCE"]
+    # Define all UK cities available in Beckn API and their regions
+    cities = [
+        # South UK
+        ("Cambridge", "South UK"),
+        ("London", "South UK"),
+        ("Bristol", "South UK"),
+        ("Birmingham", "South UK"),
+        
+        # North UK
+        ("Manchester", "North UK"),
+        ("Liverpool", "North UK"),
+        ("Leeds", "North UK"),
+        ("Edinburgh", "North UK"),
+        ("Glasgow", "North UK"),
+    ]
     
-    for region_name in regions:
+    # Group cities by region
+    regions = {}
+    for city, region in cities:
+        if region not in regions:
+            regions[region] = []
+        regions[region].append(city)
+    
+    # Create regional agents and local agents per city
+    for region_name, region_cities in regions.items():
         regional_agent = RegionalAgent(name=f"{region_name} Regional", region=region_name)
         
-        # Create 3 local agents per region
-        for i in range(3):
+        for city in region_cities:
             local_agent = LocalAgent(
-                name=f"{region_name} Local {i+1}",
+                name=city,  # Agent name is just the city name
                 region=region_name,
                 generator=data_generator
             )
@@ -100,6 +122,34 @@ async def stop_sim():
     global simulation_running
     simulation_running = False
     return {"status": "stopped"}
+
+@app.get("/discovery/status")
+async def get_discovery_status():
+    """
+    Returns discovery data from all local agents across all regions.
+    """
+    discovery_data = []
+    
+    for region in global_agent.regional_agents:
+        for local_agent in region.local_agents:
+            discovery_data.append(local_agent.get_discovery_data())
+    
+    return {
+        "total_agents": len(discovery_data),
+        "agents": discovery_data
+    }
+
+@app.get("/discovery/agent/{agent_name}")
+async def get_agent_discovery(agent_name: str):
+    """
+    Returns discovery data for a specific agent by name.
+    """
+    for region in global_agent.regional_agents:
+        for local_agent in region.local_agents:
+            if local_agent.name == agent_name:
+                return local_agent.get_discovery_data()
+    
+    return {"error": "Agent not found"}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
