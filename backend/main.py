@@ -1,5 +1,12 @@
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks # Trigger reload
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+import os
+
+# Load environment variables
+load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')) # Explicitly look in parent dir
+
 import uvicorn
 import asyncio
 from datetime import datetime, timedelta

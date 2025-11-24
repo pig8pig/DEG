@@ -32,14 +32,27 @@ class RegionalAgent:
     def aggregate_data(self):
         """
         Aggregates reports and catalogs from local agents.
+        Includes synthesized summaries from each agent's LLM.
         """
         all_providers = []
         total_capacity_available = 0
+        agent_summaries = []  # Collect LLM-synthesized summaries
         
         for agent in self.local_agents:
             # Get local catalog
             catalog = agent.get_beckn_catalog()
             all_providers.extend(catalog.providers)
+            
+            # Get report (this triggers synthesis)
+            report = agent.get_report()
+            
+            # Collect synthesized summary from the report
+            if report.get("synthesized_summary"):
+                agent_summaries.append({
+                    "agent_name": agent.name,
+                    "location": agent.assigned_location,
+                    "summary": report["synthesized_summary"]
+                })
             
             # Simple stats
             if agent.node.is_available:
@@ -87,7 +100,8 @@ class RegionalAgent:
             "total_used": total_used,
             "lowest_cost_options": lowest_cost_options[:50],
             "local_agents": [agent.get_report() for agent in self.local_agents],
-            "catalog": self.aggregated_catalog.dict()
+            "catalog": self.aggregated_catalog.dict(),
+            "agent_summaries": agent_summaries  # Include LLM-synthesized summaries
         }
 
     def get_report(self):
