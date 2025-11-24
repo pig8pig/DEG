@@ -32,33 +32,34 @@ def setup_system():
     Uses all UK cities available in the Beckn API.
     """
     # Define all UK cities available in Beckn API and their regions
+    # Define all UK cities available in Beckn API and their regions with coordinates
     cities = [
         # South UK
-        ("Cambridge", "South UK"),
-        ("London", "South UK"),
-        ("Bristol", "South UK"),
-        ("Birmingham", "South UK"),
+        ("Cambridge", "South UK", 52.2053, 0.1218),
+        ("London", "South UK", 51.5074, -0.1278),
+        ("Bristol", "South UK", 51.4545, -2.5879),
+        ("Birmingham", "South UK", 52.4862, -1.8904),
         
         # North UK
-        ("Manchester", "North UK"),
-        ("Liverpool", "North UK"),
-        ("Leeds", "North UK"),
-        ("Edinburgh", "North UK"),
-        ("Glasgow", "North UK"),
+        ("Manchester", "North UK", 53.4808, -2.2426),
+        ("Liverpool", "North UK", 53.4084, -2.9916),
+        ("Leeds", "North UK", 53.8008, -1.5491),
+        ("Edinburgh", "North UK", 55.9533, -3.1883),
+        ("Glasgow", "North UK", 55.8642, -4.2518),
     ]
     
     # Group cities by region
     regions = {}
-    for city, region in cities:
+    for city, region, lat, lon in cities:
         if region not in regions:
             regions[region] = []
-        regions[region].append(city)
+        regions[region].append((city, lat, lon))
     
     # Create regional agents and local agents per city
     for region_name, region_cities in regions.items():
         regional_agent = RegionalAgent(name=f"{region_name} Regional", region=region_name)
         
-        for city in region_cities:
+        for city, lat, lon in region_cities:
             local_agent = LocalAgent(
                 name=city,  # Agent name is just the city name
                 region=region_name,
