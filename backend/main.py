@@ -80,6 +80,23 @@ def setup_system():
 
 setup_system()
 
+def run_simulation_step(sim_time):
+    """
+    Synchronous simulation step to be run in a thread.
+    """
+    # 2. Update Agents (Energy Data, Capacity)
+    for region in global_agent.regional_agents:
+        region.update_state(sim_time)
+        
+    # 3. Generate New Tasks
+    # if random.random() < 0.5: # 50% chance of new tasks
+    #     new_tasks = data_generator.generate_tasks(num_tasks=random.randint(1, 5))
+    #     for task in new_tasks:
+    #         global_agent.add_task_to_queue(task)
+            
+    # 4. Global Optimization
+    global_agent.optimize_and_assign()
+
 async def simulation_loop():
     """
     Background task to run the simulation.
@@ -92,18 +109,8 @@ async def simulation_loop():
         # 1. Update Time
         sim_time += timedelta(minutes=15) # Fast forward
         
-        # 2. Update Agents (Energy Data, Capacity)
-        for region in global_agent.regional_agents:
-            region.update_state(sim_time)
-            
-        # 3. Generate New Tasks
-        if random.random() < 0.5: # 50% chance of new tasks
-            new_tasks = data_generator.generate_tasks(num_tasks=random.randint(1, 5))
-            for task in new_tasks:
-                global_agent.add_task_to_queue(task)
-                
-        # 4. Global Optimization
-        global_agent.optimize_and_assign()
+        # Run blocking simulation logic in a separate thread to avoid blocking API
+        await asyncio.to_thread(run_simulation_step, sim_time)
         
         # Sleep for a bit to simulate real-time ticking (e.g. 1 sec = 15 mins)
         await asyncio.sleep(2)
@@ -160,6 +167,31 @@ async def get_agent_discovery(agent_name: str):
                 return local_agent.get_discovery_data()
     
     return {"error": "Agent not found"}
+
+@app.post("/jobs")
+async def submit_job(job: dict):
+    """
+    Submit a new compute job.
+    """
+    # Ensure job_id exists
+    if "job_id" not in job:
+        import uuid
+        job["job_id"] = str(uuid.uuid4())
+    
+    # Set defaults if missing
+    if "num_computations" not in job: job["num_computations"] = 100.0
+    if "estimated_runtime_hrs" not in job: job["estimated_runtime_hrs"] = 1.0
+    if "status" not in job: job["status"] = "PENDING"
+    
+    global_agent.add_task_to_queue(job)
+    return {"status": "submitted", "job_id": job["job_id"]}
+
+@app.get("/jobs")
+async def get_jobs():
+    """
+    Get all jobs and their status.
+    """
+    return {"jobs": global_agent.get_all_jobs()}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

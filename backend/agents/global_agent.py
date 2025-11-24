@@ -9,6 +9,7 @@ class GlobalAgent:
     def __init__(self):
         self.regional_agents: List[RegionalAgent] = []
         self.task_queue: List[ComputeJob] = []
+        self.all_jobs: Dict[str, ComputeJob] = {} # Track all jobs centrally
         self.logs = []
         self.beckn_client = BecknClient()
 
@@ -23,6 +24,7 @@ class GlobalAgent:
             job = task
             
         self.task_queue.append(job)
+        self.all_jobs[job.job_id] = job
         self.log_event(f"Job {job.job_id} added to global queue.")
 
     def log_event(self, message):
@@ -101,6 +103,7 @@ class GlobalAgent:
                     success = region.execute_order_lifecycle(provider_id, item.id, job)
                     if success:
                         self.log_event(f"Job {job.job_id} assigned to {provider_id} in {region.region} via Beckn Sandbox.")
+                        job.status = "ASSIGNED"
                         assigned = True
                     else:
                         self.log_event(f"Job {job.job_id} failed during Beckn lifecycle.")
@@ -124,3 +127,9 @@ class GlobalAgent:
             "logs": self.logs[-20:] # Last 20 logs
         }
         return status
+
+    def get_all_jobs(self):
+        """
+        Returns all jobs and their statuses.
+        """
+        return [job.dict() for job in self.all_jobs.values()]
