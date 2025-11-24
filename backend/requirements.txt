@@ -1,5 +1,7 @@
+openai
 fastapi
 uvicorn
 pydantic
 numpy
 pandas
+requests

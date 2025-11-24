@@ -11,6 +11,7 @@ from beckn_models import (
     BecknOffer, BecknOrderItem
 )
 from beckn_client import BecknClient
+from llm_client import LLMClient
 
 class LocalAgent:
     # Define location assignments for each agent (agent name -> Beckn API location)
@@ -35,6 +36,7 @@ class LocalAgent:
         self.lon = lon
         
         self.beckn_client = BecknClient()
+        self.llm_client = LLMClient()  # Each agent gets its own LLM instance
         self.active_external_orders = {} # Map job_id -> external_order_id
         
         # Discovery tracking
@@ -63,6 +65,7 @@ class LocalAgent:
         self.current_jobs: Dict[str, ComputeJob] = {}
         self.energy_data = {}
         self.orders: Dict[str, BecknOrder] = {}
+        self.synthesized_summary = None  # Store latest LLM-synthesized summary
 
     def update_state(self, timestamp: datetime):
         """
@@ -299,10 +302,33 @@ class LocalAgent:
             print(f"Order lifecycle failed: {e}")
             return False
 
+    def synthesize_report(self) -> Optional[str]:
+        """
+        Uses the LLM to synthesize agent data into a natural language summary.
+        This summary is ready for the regional agent to consume.
+        """
+        agent_data = {
+            "name": self.name,
+            "region": self.region,
+            "location_data": self.location_data or {},
+            "energy_data": self.energy_data,
+            "active_tasks_count": len(self.current_jobs),
+            "available_capacity": 1 if self.node.is_available else 0
+        }
+        
+        summary = self.llm_client.synthesize_agent_report(agent_data)
+        if summary:
+            self.synthesized_summary = summary
+        return summary
+    
     def get_report(self):
         """
         Returns a report for the regional agent.
+        Includes both raw data and LLM-synthesized summary.
         """
+        # Generate fresh synthesis
+        synthesis = self.synthesize_report()
+        
         return {
             "name": self.name,
             "region": self.region,
@@ -310,7 +336,9 @@ class LocalAgent:
             "available_capacity": 1 if self.node.is_available else 0, # Simplified
             "energy_data": self.energy_data,
             "active_tasks_count": len(self.current_jobs),
-            "catalog": self.get_beckn_catalog().dict()
+            "catalog": self.get_beckn_catalog().dict(),
+            "synthesized_summary": synthesis,  # LLM-generated summary
+            "location_data": self.location_data  # Include location data for context
         }
     
     def get_discovery_data(self):
