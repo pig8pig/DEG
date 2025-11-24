@@ -43,6 +43,51 @@ node_modules/
 .next/
 out/
 coverage/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+# Temporary / Debug files
+debug_beckn_api.py
+debug_output.json
+output.txt
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Node.js / Next.js
+node_modules/
+/.pnp
+.pnp.js
+.next/
+out/
+coverage/
 .nyc_output/
 
 # IDEs
