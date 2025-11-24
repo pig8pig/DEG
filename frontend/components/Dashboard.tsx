@@ -5,6 +5,7 @@ import axios from 'axios';
 import AgentStatus from './AgentStatus';
 import EnergyChart from './EnergyChart';
 import { Play, Pause, Activity, Terminal, Zap, Globe } from 'lucide-react';
+import Link from 'next/link';
 
 import dynamic from 'next/dynamic';
 
@@ -71,6 +72,13 @@ const Dashboard = () => {
               <span className="text-sm font-medium text-gray-300">{isRunning ? 'System Active' : 'System Paused'}</span>
             </div>
 
+            <Link
+              href="/"
+              className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg border border-gray-700 transition-colors text-sm font-medium"
+            >
+              Grid Timeline
+            </Link>
+
             <button
               onClick={toggleSimulation}
               className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-bold transition-all transform active:scale-95 ${isRunning
@@ -129,12 +137,37 @@ const Dashboard = () => {
                 <h3 className="font-bold text-sm text-gray-300">System Event Log</h3>
               </div>
               <div className="flex-1 overflow-y-auto p-4 font-mono text-xs space-y-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
-                {status?.logs?.slice().reverse().map((log: string, i: number) => (
-                  <div key={i} className="flex gap-3 text-gray-400 hover:text-gray-200 transition-colors border-b border-gray-800/50 pb-1 last:border-0">
-                    <span className="text-gray-600 select-none">[{new Date().toLocaleTimeString()}]</span>
-                    <span>{log}</span>
-                  </div>
-                ))}
+                {status?.logs?.slice().reverse().map((log: any, i: number) => {
+                  const timestamp = typeof log === 'string' ? new Date().toLocaleTimeString() : new Date(log.timestamp).toLocaleTimeString();
+                  const message = typeof log === 'string' ? log : log.message;
+                  
+                  // Extract priority from message if present (e.g., "Priority 3" or "(Priority 5)")
+                  const priorityMatch = message.match(/\(Priority (\d)\)|Priority (\d)/);
+                  const priority = priorityMatch ? parseInt(priorityMatch[1] || priorityMatch[2]) : null;
+                  
+                  // Get priority color
+                  const getPriorityColor = (p: number) => {
+                    switch (p) {
+                      case 1: return 'text-blue-400';
+                      case 2: return 'text-green-400';
+                      case 3: return 'text-yellow-400';
+                      case 4: return 'text-orange-400';
+                      case 5: return 'text-purple-400';
+                      default: return 'text-gray-400';
+                    }
+                  };
+                  
+                  // Determine if this is a success or failure message
+                  const isSuccess = message.includes('✓');
+                  const isFailure = message.includes('✗');
+                  
+                  return (
+                    <div key={i} className={`flex gap-3 ${priority ? getPriorityColor(priority) : 'text-gray-400'} hover:text-gray-200 transition-colors border-b border-gray-800/50 pb-1 last:border-0`}>
+                      <span className="text-gray-600 select-none">[{timestamp}]</span>
+                      <span className={isSuccess ? 'text-green-400' : isFailure ? 'text-red-400' : ''}>{message}</span>
+                    </div>
+                  );
+                })}
                 {!status?.logs?.length && (
                   <div className="text-gray-600 italic text-center mt-10">No events recorded yet...</div>
                 )}

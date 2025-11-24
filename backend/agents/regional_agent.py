@@ -70,8 +70,11 @@ class RegionalAgent:
         total_capacity = len(self.local_agents)
         total_used = total_capacity - total_capacity_available
         
+        # Combine local and external providers
+        combined_providers = all_providers + (self.aggregated_catalog.providers if self.aggregated_catalog else [])
+        
         lowest_cost_options = []
-        for provider in self.aggregated_catalog.providers:
+        for provider in combined_providers:
             for item in provider.items:
                 # Extract price and carbon
                 try:
@@ -85,6 +88,7 @@ class RegionalAgent:
                 
                 lowest_cost_options.append({
                     "agent_name": provider.id,
+                    "item_id": item.id,
                     "cost": cost,
                     "carbon": carbon,
                     "available": 1 # Simplified
@@ -191,14 +195,19 @@ class RegionalAgent:
 
     def execute_order_lifecycle(self, provider_id: str, item_id: str, job: ComputeJob) -> bool:
         """
-        Routes the order execution to a local agent.
-        For the hackathon, we can pick any local agent to act as the 'buyer' manager.
+        Routes the order execution to the correct local agent based on provider_id.
+        The provider_id should match the local agent's name.
         """
         if not self.local_agents:
             return False
             
-        # Pick the first agent to manage this order
-        agent = self.local_agents[0]
+        # Find the specific local agent that matches the provider_id
+        agent = next((a for a in self.local_agents if a.name == provider_id), None)
+        
+        if not agent:
+            print(f"Warning: No local agent found with name '{provider_id}' in region {self.region}")
+            return False
+            
         return agent.execute_order_lifecycle(item_id, provider_id, job)
 
     def handle_beckn_select(self, provider_id: str, item_id: str) -> Optional[BecknOrder]:

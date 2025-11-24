@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Optional, Tuple
 import random
 import uuid
@@ -63,6 +63,7 @@ class LocalAgent:
         )
         
         self.current_jobs: Dict[str, ComputeJob] = {}
+        self.job_schedule: Dict[str, Dict] = {}  # Track job start times and durations
         self.energy_data = {}
         self.orders: Dict[str, BecknOrder] = {}
         self.synthesized_summary = None  # Store latest LLM-synthesized summary
@@ -274,10 +275,23 @@ class LocalAgent:
             if 'error' in select_res:
                 return False
                 
-            # 2. Init
-            # We use the order details from select response
+            # 2. Init - Pass job for Compute-Energy enrichment
             order_details = select_res.get('message', {}).get('order', {})
-            init_res = self.beckn_client.init(transaction_id, bpp_id, bpp_uri, order_details)
+            init_res = self.beckn_client.init(transaction_id, bpp_id, bpp_uri, order_details, job=job)
+            
+            # Enrich location data with actual agent coordinates
+            if 'message' in init_res and 'order' in init_res['message']:
+                order = init_res['message']['order']
+                if 'beckn:fulfillment' in order:
+                    fulfillment = order['beckn:fulfillment']
+                    if 'beckn:deliveryAttributes' in fulfillment:
+                        delivery = fulfillment['beckn:deliveryAttributes']
+                        if 'beckn:location' in delivery:
+                            # Update with actual agent location
+                            delivery['beckn:location']['geo']['coordinates'] = [self.lon, self.lat]
+                            delivery['beckn:location']['address']['addressLocality'] = self.assigned_location
+                            delivery['beckn:location']['address']['addressRegion'] = self.region
+            
             if 'error' in init_res:
                 return False
 
@@ -290,10 +304,22 @@ class LocalAgent:
                 state = confirmed_order.get('beckn:orderStatus')
                 
                 if state in ["CONFIRMED", "ACCEPTED", "PENDING"]: # Sandbox might return PENDING
-                    # Success
+                    # Success - record job assignment
                     self.current_jobs[job.job_id] = job
                     job.status = "ASSIGNED"
                     self.active_external_orders[job.job_id] = confirmed_order.get('beckn:id')
+                    
+                    # Record job schedule for timeline visualization
+                    start_time = job.start_time_earliest or datetime.now()
+                    self.job_schedule[job.job_id] = {
+                        "job_id": job.job_id,
+                        "start_time": start_time.isoformat(),
+                        "duration_hrs": job.estimated_runtime_hrs,
+                        "end_time": (start_time + timedelta(hours=job.estimated_runtime_hrs)).isoformat(),
+                        "priority": job.priority,
+                        "status": "SCHEDULED"
+                    }
+                    
                     return True
             
             return False
@@ -354,5 +380,6 @@ class LocalAgent:
             "discovery_history": self.discovery_history[-5:],  # Last 5 discoveries
             "discovered_locations": self.discovered_locations,  # All UK locations
             "assigned_location": self.assigned_location,  # This agent's assigned location
-            "location_data": self.location_data  # Data for assigned location only
+            "location_data": self.location_data,  # Data for assigned location only
+            "job_schedule": list(self.job_schedule.values())  # Scheduled jobs for timeline
         }

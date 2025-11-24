@@ -1,7 +1,7 @@
 import requests
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 
 class BecknClient:
@@ -137,15 +137,98 @@ class BecknClient:
             }
         }
 
-    def init(self, transaction_id: str, bpp_id: str, bpp_uri: str, order_details: Dict) -> Dict:
+    def init(self, transaction_id: str, bpp_id: str, bpp_uri: str, order_details: Dict, job: Optional[Any] = None) -> Dict:
+        """
+        Initialize an order with full Compute-Energy specification compliance.
+        
+        Args:
+            transaction_id: Beckn transaction ID
+            bpp_id: Provider platform ID
+            bpp_uri: Provider platform URI
+            order_details: Base order details from select response
+            job: Optional ComputeJob object to enrich order with compute-energy fields
+        """
         url = f"{self.base_url}/init"
+        
+        # Start with base order from select
+        enriched_order = order_details.copy()
+        enriched_order["beckn:orderStatus"] = "INITIALIZED"
+        
+        # If ComputeJob provided, enrich with Compute-Energy specific fields
+        if job:
+            # Add fulfillment details
+            enriched_order["beckn:fulfillment"] = {
+                "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/core/v2/context.jsonld",
+                "@type": "beckn:Fulfillment",
+                "beckn:id": f"fulfillment-{job.job_id}",
+                "beckn:mode": "GRID-BASED",
+                "beckn:status": "PENDING",
+                "beckn:deliveryAttributes": {
+                    "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/ComputeEnergy/v1/context.jsonld",
+                    "@type": "beckn:ComputeEnergyFulfillment",
+                    "beckn:computeLoad": job.estimated_runtime_hrs * 1.2,  # Estimate MW based on runtime
+                    "beckn:computeLoadUnit": "MW",
+                    "beckn:location": {
+                        "@type": "beckn:Location",
+                        "geo": {
+                            "type": "Point",
+                            "coordinates": [0.0, 0.0]  # Will be set by local agent
+                        },
+                        "address": {
+                            "streetAddress": "Compute Data Centre",
+                            "addressLocality": "Unknown",
+                            "addressRegion": "UK",
+                            "postalCode": "00000",
+                            "addressCountry": "GB"
+                        }
+                    },
+                    "beckn:timeWindow": {
+                        "start": (job.start_time_earliest or datetime.utcnow()).isoformat() + "Z",
+                        "end": (job.deadline_latest or (datetime.utcnow() + timedelta(hours=job.estimated_runtime_hrs))).isoformat() + "Z"
+                    },
+                    "beckn:workloadMetadata": {
+                        "workloadType": "BATCH_COMPUTE",  # Could be AI_TRAINING, BATCH_PROCESSING, etc.
+                        "workloadId": job.job_id,
+                        "gpuHours": job.estimated_runtime_hrs * 8,  # Estimate GPU hours
+                        "carbonBudget": job.estimated_runtime_hrs * 100,  # Estimate carbon budget
+                        "carbonBudgetUnit": "kgCO2"
+                    }
+                }
+            }
+            
+            # Add order attributes
+            enriched_order["beckn:orderAttributes"] = {
+                "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/ComputeEnergy/v1/context.jsonld",
+                "@type": "beckn:ComputeEnergyOrder",
+                "beckn:requestType": "compute_slot_reservation",
+                "beckn:priority": "medium" if job.priority <= 3 else "high",
+                "beckn:flexibilityLevel": "high"  # Assume high flexibility for batch jobs
+            }
+            
+            # Add invoice/customer information
+            enriched_order["beckn:invoice"] = {
+                "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/core/v2/context.jsonld",
+                "@type": "schema:Invoice",
+                "schema:customer": {
+                    "email": "compute@deg-system.ai",
+                    "phone": "+44 0000 000000",
+                    "legalName": "Digital Energy Grid System",
+                    "address": {
+                        "streetAddress": "DEG Headquarters",
+                        "addressLocality": "London",
+                        "addressRegion": "Greater London",
+                        "postalCode": "SW1A 1AA",
+                        "addressCountry": "GB"
+                    }
+                }
+            }
+        
         payload = {
             "context": self._create_context("init", transaction_id=transaction_id, bpp_id=bpp_id, bpp_uri=bpp_uri),
             "message": {
-                "order": order_details
+                "order": enriched_order
             }
         }
-        payload["message"]["order"]["beckn:orderStatus"] = "INITIALIZED"
         
         try:
             response = requests.post(url, headers=self.headers, json=payload, timeout=5)
