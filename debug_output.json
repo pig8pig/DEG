@@ -1,0 +1,788 @@
+{
+  "context": {
+    "message_id": "c23e0be8-02a0-41a7-866e-f58422677f13",
+    "bap_id": "ev-charging.sandbox1.com",
+    "transaction_id": "dada5280-169b-466c-af64-d3cae5d7232e",
+    "timestamp": "2025-11-24T17:25:19.099255Z",
+    "domain": "beckn.one:DEG:compute-energy:1.0",
+    "action": "on_discover",
+    "version": "2.0.0",
+    "ttl": "PT30S",
+    "bap_uri": "https://ev-charging.sandbox1.com.com/bap",
+    "schema_context": [
+      "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/ComputeEnergy/v1/context.jsonld"
+    ]
+  },
+  "message": {
+    "catalogs": [
+      {
+        "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/core/v2/context.jsonld",
+        "@type": "beckn:Catalog",
+        "beckn:id": "catalog-ce-grid-windows-001",
+        "beckn:descriptor": {
+          "@type": "beckn:Descriptor",
+          "schema:name": "Grid Flexibility Windows - UK East",
+          "beckn:shortDesc": "Available low-carbon compute windows for November 17, 2025"
+        },
+        "beckn:providerId": "gridflex-agent-uk",
+        "beckn:validity": {
+          "@type": "beckn:TimePeriod",
+          "schema:startDate": "2025-11-17T00:00:00Z",
+          "schema:endDate": "2025-11-17T23:59:59Z"
+        },
+        "beckn:items": [
+          {
+            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/core/v2/context.jsonld",
+            "@type": "beckn:Item",
+            "beckn:id": "item-ce-cambridge-morning-001",
+            "beckn:descriptor": {
+              "@type": "beckn:Descriptor",
+              "schema:name": "Cambridge-East Morning Window",
+              "beckn:shortDesc": "Optimal renewable energy window for compute workloads"
+            },
+            "beckn:availableAt": [
+              {
+                "@type": "beckn:Location",
+                "geo": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        0,
+                        52
+                      ],
+                      [
+                        0.5,
+                        52
+                      ],
+                      [
+                        0.5,
+                        52.5
+                      ],
+                      [
+                        0,
+                        52.5
+                      ],
+                      [
+                        0,
+                        52
+                      ]
+                    ]
+                  ]
+                },
+                "address": {
+                  "streetAddress": "Cambridge-East Grid Zone",
+                  "addressLocality": "Cambridge",
+                  "addressRegion": "East England",
+                  "addressCountry": "GB"
+                }
+              }
+            ],
+            "beckn:rateable": false,
+            "beckn:provider": {
+              "beckn:id": "gridflex-agent-uk",
+              "beckn:descriptor": {
+                "@type": "beckn:Descriptor",
+                "schema:name": "GridFlex Agent UK"
+              }
+            },
+            "beckn:itemAttributes": {
+              "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/ComputeEnergy/v1/context.jsonld",
+              "@type": "beckn:ComputeEnergyWindow",
+              "beckn:timeWindow": {
+                "end": "14:00:00Z",
+                "start": "10:00:00Z",
+                "duration": "PT4H"
+              },
+              "beckn:capacityParameters": {
+                "capacityUnit": "MW",
+                "availableCapacity": 5,
+                "reservationRequired": false
+              },
+              "beckn:gridParameters": {
+                "gridArea": "Cambridge-East",
+                "gridZone": "UK-EAST-1",
+                "renewableMix": 80,
+                "carbonIntensity": 120,
+                "renewableMixUnit": "percent",
+                "carbonIntensityUnit": "gCO2/kWh"
+              }
+            }
+          },
+          {
+            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/core/v2/context.jsonld",
+            "@type": "beckn:Item",
+            "beckn:id": "item-ce-manchester-afternoon-001",
+            "beckn:descriptor": {
+              "@type": "beckn:Descriptor",
+              "schema:name": "Manchester Afternoon Window",
+              "beckn:shortDesc": "Clean energy window with competitive pricing"
+            },
+            "beckn:availableAt": [
+              {
+                "@type": "beckn:Location",
+                "geo": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        -2.5,
+                        53.3
+                      ],
+                      [
+                        -2,
+                        53.3
+                      ],
+                      [
+                        -2,
+                        53.7
+                      ],
+                      [
+                        -2.5,
+                        53.7
+                      ],
+                      [
+                        -2.5,
+                        53.3
+                      ]
+                    ]
+                  ]
+                },
+                "address": {
+                  "streetAddress": "Manchester Grid Zone",
+                  "addressLocality": "Manchester",
+                  "addressRegion": "North West England",
+                  "addressCountry": "GB"
+                }
+              }
+            ],
+            "beckn:rateable": false,
+            "beckn:provider": {
+              "beckn:id": "gridflex-agent-uk",
+              "beckn:descriptor": {
+                "@type": "beckn:Descriptor",
+                "schema:name": "GridFlex Agent UK"
+              }
+            },
+            "beckn:itemAttributes": {
+              "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/ComputeEnergy/v1/context.jsonld",
+              "@type": "beckn:ComputeEnergyWindow",
+              "beckn:timeWindow": {
+                "end": "18:00:00Z",
+                "start": "14:00:00Z",
+                "duration": "PT4H"
+              },
+              "beckn:capacityParameters": {
+                "capacityUnit": "MW",
+                "availableCapacity": 4.5,
+                "reservationRequired": false
+              },
+              "beckn:gridParameters": {
+                "gridArea": "Manchester",
+                "gridZone": "UK-NORTH-1",
+                "renewableMix": 75,
+                "carbonIntensity": 140,
+                "renewableMixUnit": "percent",
+                "carbonIntensityUnit": "gCO2/kWh"
+              }
+            }
+          },
+          {
+            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/core/v2/context.jsonld",
+            "@type": "beckn:Item",
+            "beckn:id": "item-ce-london-morning-001",
+            "beckn:descriptor": {
+              "@type": "beckn:Descriptor",
+              "schema:name": "London South Morning Window",
+              "beckn:shortDesc": "High renewable availability for compute workloads"
+            },
+            "beckn:availableAt": [
+              {
+                "@type": "beckn:Location",
+                "geo": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        -0.2,
+                        51.2
+                      ],
+                      [
+                        0.2,
+                        51.2
+                      ],
+                      [
+                        0.2,
+                        51.6
+                      ],
+                      [
+                        -0.2,
+                        51.6
+                      ],
+                      [
+                        -0.2,
+                        51.2
+                      ]
+                    ]
+                  ]
+                },
+                "address": {
+                  "streetAddress": "London South Grid Zone",
+                  "addressLocality": "London",
+                  "addressRegion": "South England",
+                  "addressCountry": "GB"
+                }
+              }
+            ],
+            "beckn:rateable": false,
+            "beckn:provider": {
+              "beckn:id": "gridflex-agent-uk",
+              "beckn:descriptor": {
+                "@type": "beckn:Descriptor",
+                "schema:name": "GridFlex Agent UK"
+              }
+            },
+            "beckn:itemAttributes": {
+              "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/ComputeEnergy/v1/context.jsonld",
+              "@type": "beckn:ComputeEnergyWindow",
+              "beckn:timeWindow": {
+                "end": "12:00:00Z",
+                "start": "08:00:00Z",
+                "duration": "PT4H"
+              },
+              "beckn:capacityParameters": {
+                "capacityUnit": "MW",
+                "availableCapacity": 6.2,
+                "reservationRequired": false
+              },
+              "beckn:gridParameters": {
+                "gridArea": "London South",
+                "gridZone": "UK-SOUTH-1",
+                "renewableMix": 70,
+                "carbonIntensity": 150,
+                "renewableMixUnit": "percent",
+                "carbonIntensityUnit": "gCO2/kWh"
+              }
+            }
+          },
+          {
+            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/core/v2/context.jsonld",
+            "@type": "beckn:Item",
+            "beckn:id": "item-ce-edinburgh-evening-001",
+            "beckn:descriptor": {
+              "@type": "beckn:Descriptor",
+              "schema:name": "Edinburgh Evening Window",
+              "beckn:shortDesc": "Low-carbon compute window with high wind supply"
+            },
+            "beckn:availableAt": [
+              {
+                "@type": "beckn:Location",
+                "geo": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        -3.4,
+                        55.8
+                      ],
+                      [
+                        -3,
+                        55.8
+                      ],
+                      [
+                        -3,
+                        56.1
+                      ],
+                      [
+                        -3.4,
+                        56.1
+                      ],
+                      [
+                        -3.4,
+                        55.8
+                      ]
+                    ]
+                  ]
+                },
+                "address": {
+                  "streetAddress": "Edinburgh Central Grid Zone",
+                  "addressLocality": "Edinburgh",
+                  "addressRegion": "Scotland",
+                  "addressCountry": "GB"
+                }
+              }
+            ],
+            "beckn:rateable": false,
+            "beckn:provider": {
+              "beckn:id": "gridflex-agent-uk",
+              "beckn:descriptor": {
+                "@type": "beckn:Descriptor",
+                "schema:name": "GridFlex Agent UK"
+              }
+            },
+            "beckn:itemAttributes": {
+              "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/ComputeEnergy/v1/context.jsonld",
+              "@type": "beckn:ComputeEnergyWindow",
+              "beckn:timeWindow": {
+                "end": "22:00:00Z",
+                "start": "18:00:00Z",
+                "duration": "PT4H"
+              },
+              "beckn:capacityParameters": {
+                "capacityUnit": "MW",
+                "availableCapacity": 5.8,
+                "reservationRequired": true
+              },
+              "beckn:gridParameters": {
+                "gridArea": "Edinburgh",
+                "gridZone": "UK-SCOT-2",
+                "renewableMix": 85,
+                "carbonIntensity": 110,
+                "renewableMixUnit": "percent",
+                "carbonIntensityUnit": "gCO2/kWh"
+              }
+            }
+          },
+          {
+            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/core/v2/context.jsonld",
+            "@type": "beckn:Item",
+            "beckn:id": "item-ce-bristol-midday-001",
+            "beckn:descriptor": {
+              "@type": "beckn:Descriptor",
+              "schema:name": "Bristol Midday Window",
+              "beckn:shortDesc": "Stable solar-wind mix with predictable grid load"
+            },
+            "beckn:availableAt": [
+              {
+                "@type": "beckn:Location",
+                "geo": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        -2.8,
+                        51.3
+                      ],
+                      [
+                        -2.4,
+                        51.3
+                      ],
+                      [
+                        -2.4,
+                        51.6
+                      ],
+                      [
+                        -2.8,
+                        51.6
+                      ],
+                      [
+                        -2.8,
+                        51.3
+                      ]
+                    ]
+                  ]
+                },
+                "address": {
+                  "streetAddress": "Bristol Grid Zone",
+                  "addressLocality": "Bristol",
+                  "addressRegion": "South West England",
+                  "addressCountry": "GB"
+                }
+              }
+            ],
+            "beckn:rateable": false,
+            "beckn:provider": {
+              "beckn:id": "gridflex-agent-uk",
+              "beckn:descriptor": {
+                "@type": "beckn:Descriptor",
+                "schema:name": "GridFlex Agent UK"
+              }
+            },
+            "beckn:itemAttributes": {
+              "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/ComputeEnergy/v1/context.jsonld",
+              "@type": "beckn:ComputeEnergyWindow",
+              "beckn:timeWindow": {
+                "end": "15:00:00Z",
+                "start": "11:00:00Z",
+                "duration": "PT4H"
+              },
+              "beckn:capacityParameters": {
+                "capacityUnit": "MW",
+                "availableCapacity": 4.7,
+                "reservationRequired": false
+              },
+              "beckn:gridParameters": {
+                "gridArea": "Bristol",
+                "gridZone": "UK-SW-1",
+                "renewableMix": 68,
+                "carbonIntensity": 160,
+                "renewableMixUnit": "percent",
+                "carbonIntensityUnit": "gCO2/kWh"
+              }
+            }
+          },
+          {
+            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/core/v2/context.jsonld",
+            "@type": "beckn:Item",
+            "beckn:id": "item-ce-birmingham-morning-002",
+            "beckn:descriptor": {
+              "@type": "beckn:Descriptor",
+              "schema:name": "Birmingham Morning Window",
+              "beckn:shortDesc": "Wind-rich morning ideal for green compute tasks"
+            },
+            "beckn:availableAt": [
+              {
+                "@type": "beckn:Location",
+                "geo": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        -1.8,
+                        52.4
+                      ],
+                      [
+                        -1.3,
+                        52.4
+                      ],
+                      [
+                        -1.3,
+                        52.7
+                      ],
+                      [
+                        -1.8,
+                        52.7
+                      ],
+                      [
+                        -1.8,
+                        52.4
+                      ]
+                    ]
+                  ]
+                },
+                "address": {
+                  "streetAddress": "Birmingham Grid Sector",
+                  "addressLocality": "Birmingham",
+                  "addressRegion": "West Midlands",
+                  "addressCountry": "GB"
+                }
+              }
+            ],
+            "beckn:rateable": false,
+            "beckn:provider": {
+              "beckn:id": "gridflex-agent-uk",
+              "beckn:descriptor": {
+                "@type": "beckn:Descriptor",
+                "schema:name": "GridFlex Agent UK"
+              }
+            },
+            "beckn:itemAttributes": {
+              "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/ComputeEnergy/v1/context.jsonld",
+              "@type": "beckn:ComputeEnergyWindow",
+              "beckn:timeWindow": {
+                "end": "11:00:00Z",
+                "start": "07:00:00Z",
+                "duration": "PT4H"
+              },
+              "beckn:capacityParameters": {
+                "capacityUnit": "MW",
+                "availableCapacity": 6,
+                "reservationRequired": false
+              },
+              "beckn:gridParameters": {
+                "gridArea": "Birmingham",
+                "gridZone": "UK-MID-2",
+                "renewableMix": 72,
+                "carbonIntensity": 135,
+                "renewableMixUnit": "percent",
+                "carbonIntensityUnit": "gCO2/kWh"
+              }
+            }
+          },
+          {
+            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/core/v2/context.jsonld",
+            "@type": "beckn:Item",
+            "beckn:id": "item-ce-liverpool-evening-001",
+            "beckn:descriptor": {
+              "@type": "beckn:Descriptor",
+              "schema:name": "Liverpool Evening Window",
+              "beckn:shortDesc": "Peak wind availability with reduced carbon footprint"
+            },
+            "beckn:availableAt": [
+              {
+                "@type": "beckn:Location",
+                "geo": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        -3.1,
+                        53.3
+                      ],
+                      [
+                        -2.8,
+                        53.3
+                      ],
+                      [
+                        -2.8,
+                        53.6
+                      ],
+                      [
+                        -3.1,
+                        53.6
+                      ],
+                      [
+                        -3.1,
+                        53.3
+                      ]
+                    ]
+                  ]
+                },
+                "address": {
+                  "streetAddress": "Liverpool Grid Circle",
+                  "addressLocality": "Liverpool",
+                  "addressRegion": "North West England",
+                  "addressCountry": "GB"
+                }
+              }
+            ],
+            "beckn:rateable": false,
+            "beckn:provider": {
+              "beckn:id": "gridflex-agent-uk",
+              "beckn:descriptor": {
+                "@type": "beckn:Descriptor",
+                "schema:name": "GridFlex Agent UK"
+              }
+            },
+            "beckn:itemAttributes": {
+              "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/ComputeEnergy/v1/context.jsonld",
+              "@type": "beckn:ComputeEnergyWindow",
+              "beckn:timeWindow": {
+                "end": "21:00:00Z",
+                "start": "17:00:00Z",
+                "duration": "PT4H"
+              },
+              "beckn:capacityParameters": {
+                "capacityUnit": "MW",
+                "availableCapacity": 5.4,
+                "reservationRequired": true
+              },
+              "beckn:gridParameters": {
+                "gridArea": "Liverpool",
+                "gridZone": "UK-NW-3",
+                "renewableMix": 82,
+                "carbonIntensity": 115,
+                "renewableMixUnit": "percent",
+                "carbonIntensityUnit": "gCO2/kWh"
+              }
+            }
+          },
+          {
+            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/core/v2/context.jsonld",
+            "@type": "beckn:Item",
+            "beckn:id": "item-ce-glasgow-afternoon-002",
+            "beckn:descriptor": {
+              "@type": "beckn:Descriptor",
+              "schema:name": "Glasgow Afternoon Window",
+              "beckn:shortDesc": "High hydro-wind mix ideal for compute pipelines"
+            },
+            "beckn:availableAt": [
+              {
+                "@type": "beckn:Location",
+                "geo": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        -4.4,
+                        55.7
+                      ],
+                      [
+                        -4,
+                        55.7
+                      ],
+                      [
+                        -4,
+                        56
+                      ],
+                      [
+                        -4.4,
+                        56
+                      ],
+                      [
+                        -4.4,
+                        55.7
+                      ]
+                    ]
+                  ]
+                },
+                "address": {
+                  "streetAddress": "Glasgow Grid Cluster",
+                  "addressLocality": "Glasgow",
+                  "addressRegion": "Scotland",
+                  "addressCountry": "GB"
+                }
+              }
+            ],
+            "beckn:rateable": false,
+            "beckn:provider": {
+              "beckn:id": "gridflex-agent-uk",
+              "beckn:descriptor": {
+                "@type": "beckn:Descriptor",
+                "schema:name": "GridFlex Agent UK"
+              }
+            },
+            "beckn:itemAttributes": {
+              "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/ComputeEnergy/v1/context.jsonld",
+              "@type": "beckn:ComputeEnergyWindow",
+              "beckn:timeWindow": {
+                "end": "17:00:00Z",
+                "start": "13:00:00Z",
+                "duration": "PT4H"
+              },
+              "beckn:capacityParameters": {
+                "capacityUnit": "MW",
+                "availableCapacity": 7,
+                "reservationRequired": false
+              },
+              "beckn:gridParameters": {
+                "gridArea": "Glasgow",
+                "gridZone": "UK-SCOT-4",
+                "renewableMix": 88,
+                "carbonIntensity": 105,
+                "renewableMixUnit": "percent",
+                "carbonIntensityUnit": "gCO2/kWh"
+              }
+            }
+          },
+          {
+            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/core/v2/context.jsonld",
+            "@type": "beckn:Item",
+            "beckn:id": "item-ce-leeds-night-001",
+            "beckn:descriptor": {
+              "@type": "beckn:Descriptor",
+              "schema:name": "Leeds Night Window",
+              "beckn:shortDesc": "Night-time low-cost compute with stable grid load"
+            },
+            "beckn:availableAt": [
+              {
+                "@type": "beckn:Location",
+                "geo": {
+                  "type": "Polygon",
+                  "coordinates": [
+                    [
+                      [
+                        -1.7,
+                        53.7
+                      ],
+                      [
+                        -1.2,
+                        53.7
+                      ],
+                      [
+                        -1.2,
+                        54
+                      ],
+                      [
+                        -1.7,
+                        54
+                      ],
+                      [
+                        -1.7,
+                        53.7
+                      ]
+                    ]
+                  ]
+                },
+                "address": {
+                  "streetAddress": "Leeds Grid Triangle",
+                  "addressLocality": "Leeds",
+                  "addressRegion": "Yorkshire",
+                  "addressCountry": "GB"
+                }
+              }
+            ],
+            "beckn:rateable": false,
+            "beckn:provider": {
+              "beckn:id": "gridflex-agent-uk",
+              "beckn:descriptor": {
+                "@type": "beckn:Descriptor",
+                "schema:name": "GridFlex Agent UK"
+              }
+            },
+            "beckn:itemAttributes": {
+              "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/ComputeEnergy/v1/context.jsonld",
+              "@type": "beckn:ComputeEnergyWindow",
+              "beckn:timeWindow": {
+                "end": "02:00:00Z",
+                "start": "22:00:00Z",
+                "duration": "PT4H"
+              },
+              "beckn:capacityParameters": {
+                "capacityUnit": "MW",
+                "availableCapacity": 3.8,
+                "reservationRequired": false
+              },
+              "beckn:gridParameters": {
+                "gridArea": "Leeds",
+                "gridZone": "UK-YORK-2",
+                "renewableMix": 78,
+                "carbonIntensity": 125,
+                "renewableMixUnit": "percent",
+                "carbonIntensityUnit": "gCO2/kWh"
+              }
+            }
+          }
+        ],
+        "beckn:offers": [
+          {
+            "@type": "beckn:Offer",
+            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/core/v2/context.jsonld",
+            "beckn:id": "offer-ce-cambridge-morning-001",
+            "beckn:items": [
+              "item-ce-cambridge-morning-001"
+            ],
+            "beckn:price": {
+              "value": 0.102,
+              "currency": "GBP"
+            },
+            "beckn:provider": "provider-gridflex-001",
+            "beckn:descriptor": {
+              "@type": "beckn:Descriptor",
+              "schema:name": "Cambridge Morning Compute Slot"
+            },
+            "beckn:offerAttributes": {
+              "@type": "beckn:ComputeEnergyPricing",
+              "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/ComputeEnergy/v1/context.jsonld",
+              "beckn:unit": "per_kWh",
+              "beckn:priceStability": "stable"
+            }
+          },
+          {
+            "@type": "beckn:Offer",
+            "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/core/v2/context.jsonld",
+            "beckn:id": "offer-ce-manchester-afternoon-001",
+            "beckn:items": [
+              "item-ce-manchester-afternoon-001"
+            ],
+            "beckn:price": {
+              "value": 0.092,
+              "currency": "GBP"
+            },
+            "beckn:provider": "provider-gridflex-001",
+            "beckn:descriptor": {
+              "@type": "beckn:Descriptor",
+              "schema:name": "Manchester Afternoon Compute Slot"
+            },
+            "beckn:offerAttributes": {
+              "@type": "beckn:ComputeEnergyPricing",
+              "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/ComputeEnergy/v1/context.jsonld",
+              "beckn:unit": "per_kWh",
+              "beckn:priceStability": "stable"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

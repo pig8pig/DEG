@@ -42,8 +42,14 @@ const Map = ({ agents }: MapProps) => {
         return '#ef4444'; // Red
     };
 
+    const getRegionColor = (region: string) => {
+        if (region.includes("South")) return '#06b6d4'; // Cyan
+        if (region.includes("North")) return '#d946ef'; // Magenta
+        return '#9ca3af'; // Gray
+    };
+
     return (
-        <div className="h-[400px] w-[647px] max-w-full rounded-xl overflow-hidden border border-gray-800 z-0 relative shadow-2xl shadow-black/50">
+        <div className="h-[400px] w-[647px] max-w-full rounded-xl overflow-hidden border border-gray-800 z-0 relative shadow-2xl shadow-black/50 group">
             <MapContainer
                 center={ukCenter}
                 zoom={5}
@@ -59,10 +65,10 @@ const Map = ({ agents }: MapProps) => {
                         key={idx}
                         center={[agent.location.lat, agent.location.lon]}
                         pathOptions={{
-                            color: getColor(agent.energy_data.carbon_intensity),
+                            color: getRegionColor(agent.region),
                             fillColor: getColor(agent.energy_data.carbon_intensity),
                             fillOpacity: 0.7,
-                            weight: 2
+                            weight: 3
                         }}
                         radius={8}
                     >
@@ -72,7 +78,7 @@ const Map = ({ agents }: MapProps) => {
                                 <div className="space-y-1 text-xs">
                                     <div className="flex justify-between">
                                         <span className="text-gray-400">Region:</span>
-                                        <span>{agent.region}</span>
+                                        <span style={{ color: getRegionColor(agent.region) }}>{agent.region}</span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-gray-400">Carbon:</span>
@@ -100,6 +106,37 @@ const Map = ({ agents }: MapProps) => {
                     </CircleMarker>
                 ))}
             </MapContainer>
+
+            {/* Legend Overlay */}
+            <div className="absolute bottom-4 right-4 bg-gray-900/90 backdrop-blur p-3 rounded-lg border border-gray-700 z-[1000] text-xs shadow-xl">
+                <div className="font-bold mb-2 text-gray-300">Region Indicators</div>
+                <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full border-2 border-cyan-500 bg-transparent"></div>
+                        <span className="text-gray-400">South UK</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full border-2 border-fuchsia-500 bg-transparent"></div>
+                        <span className="text-gray-400">North UK</span>
+                    </div>
+                </div>
+                <div className="my-2 border-t border-gray-700"></div>
+                <div className="font-bold mb-2 text-gray-300">Carbon Intensity</div>
+                <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                        <span className="text-gray-400">Low (&lt;50)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                        <span className="text-gray-400">Medium (&lt;150)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                        <span className="text-gray-400">High (&gt;150)</span>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };

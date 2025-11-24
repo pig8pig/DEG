@@ -74,8 +74,8 @@ const Dashboard = () => {
             <button
               onClick={toggleSimulation}
               className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-bold transition-all transform active:scale-95 ${isRunning
-                  ? 'bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/50'
-                  : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/25'
+                ? 'bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/50'
+                : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/25'
                 }`}
             >
               {isRunning ? <Pause size={18} /> : <Play size={18} />}
