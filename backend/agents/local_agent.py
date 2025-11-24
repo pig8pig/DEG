@@ -76,8 +76,8 @@ class LocalAgent:
         # Get fresh energy data
         self.energy_data = self.generator.get_energy_data(timestamp, self.region)
         
-        # Perform discovery every 5 ticks (~10 seconds in simulation)
-        if self.update_tick % 5 == 0:
+        # Perform discovery on first tick and then every 5 ticks (~10 seconds in simulation)
+        if self.update_tick == 1 or self.update_tick % 5 == 0:
             self.discover_energy_slots()
         
         # Simulate tasks finishing
@@ -346,13 +346,26 @@ class LocalAgent:
         Returns discovery data for frontend display.
         Includes assigned location and location-specific data.
         """
+        # Create lightweight version of discovery history without full Beckn responses
+        lightweight_history = []
+        for record in self.discovery_history[-5:]:  # Last 5 discoveries
+            lightweight_history.append({
+                "timestamp": record["timestamp"],
+                "city": record["city"],
+                "query": record["query"],
+                "agent_name": record["agent_name"],
+                "region": record["region"],
+                "assigned_location": record["assigned_location"],
+                "location_data": record["location_data"]
+                # Exclude 'result' and 'discovered_locations' to reduce payload size
+            })
+        
         return {
             "agent_name": self.name,
             "region": self.region,
             "discovery_count": self.discovery_count,
             "last_discovery_time": self.last_discovery_time.isoformat() if self.last_discovery_time else None,
-            "discovery_history": self.discovery_history[-5:],  # Last 5 discoveries
-            "discovered_locations": self.discovered_locations,  # All UK locations
+            "discovery_history": lightweight_history,
             "assigned_location": self.assigned_location,  # This agent's assigned location
             "location_data": self.location_data  # Data for assigned location only
         }
