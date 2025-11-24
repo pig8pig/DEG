@@ -86,6 +86,7 @@ class RegionalAgent:
             "total_capacity": total_capacity,
             "total_used": total_used,
             "lowest_cost_options": lowest_cost_options[:50],
+            "local_agents": [agent.get_report() for agent in self.local_agents],
             "catalog": self.aggregated_catalog.dict()
         }
 

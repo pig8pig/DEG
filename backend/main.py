@@ -30,17 +30,40 @@ def setup_system():
     """
     Initializes the agent hierarchy.
     """
-    regions = ["NA West", "EU Central", "MENA", "OCE"]
+    # UK Regions and their major cities with approx lat/lon
+    uk_regions = {
+        "London": [
+            ("London Central", 51.5074, -0.1278),
+            ("London West", 51.5074, -0.2278),
+            ("London East", 51.5074, -0.0278)
+        ],
+        "North": [
+            ("Manchester", 53.4808, -2.2426),
+            ("Leeds", 53.8008, -1.5491),
+            ("Liverpool", 53.4084, -2.9916)
+        ],
+        "Scotland": [
+            ("Edinburgh", 55.9533, -3.1883),
+            ("Glasgow", 55.8642, -4.2518),
+            ("Aberdeen", 57.1497, -2.0943)
+        ],
+        "South West": [
+            ("Bristol", 51.4545, -2.5879),
+            ("Cardiff", 51.4816, -3.1791),
+            ("Exeter", 50.7184, -3.5339)
+        ]
+    }
     
-    for region_name in regions:
+    for region_name, cities in uk_regions.items():
         regional_agent = RegionalAgent(name=f"{region_name} Regional", region=region_name)
         
-        # Create 3 local agents per region
-        for i in range(3):
+        for city_name, lat, lon in cities:
             local_agent = LocalAgent(
-                name=f"{region_name} Local {i+1}",
+                name=f"{city_name} Node",
                 region=region_name,
-                generator=data_generator
+                generator=data_generator,
+                lat=lat,
+                lon=lon
             )
             regional_agent.register_local_agent(local_agent)
             

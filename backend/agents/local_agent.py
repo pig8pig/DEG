@@ -13,10 +13,12 @@ from beckn_models import (
 from beckn_client import BecknClient
 
 class LocalAgent:
-    def __init__(self, name: str, region: str, generator: DataGenerator):
+    def __init__(self, name: str, region: str, generator: DataGenerator, lat: float = 0.0, lon: float = 0.0):
         self.name = name
         self.region = region
         self.generator = generator
+        self.lat = lat
+        self.lon = lon
         
         self.beckn_client = BecknClient()
         self.active_external_orders = {} # Map job_id -> external_order_id
@@ -177,6 +179,7 @@ class LocalAgent:
         return {
             "name": self.name,
             "region": self.region,
+            "location": {"lat": self.lat, "lon": self.lon},
             "available_capacity": 1 if self.node.is_available else 0, # Simplified
             "energy_data": self.energy_data,
             "active_tasks_count": len(self.current_jobs),
