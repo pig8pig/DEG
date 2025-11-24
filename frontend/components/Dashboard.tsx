@@ -1,0 +1,130 @@
+"use client";
+
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+import AgentStatus from './AgentStatus';
+import EnergyChart from './EnergyChart';
+import { Play, Pause, Activity, Terminal, Zap, Globe } from 'lucide-react';
+
+const Dashboard = () => {
+  const [status, setStatus] = useState<any>(null);
+  const [isRunning, setIsRunning] = useState(false);
+
+  const fetchData = async () => {
+    try {
+      const res = await axios.get('http://localhost:8000/status');
+      setStatus(res.data);
+    } catch (error) {
+      console.error("Error fetching status:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 2000); // Poll every 2 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  const toggleSimulation = async () => {
+    try {
+      if (isRunning) {
+        await axios.post('http://localhost:8000/control/stop');
+      } else {
+        await axios.post('http://localhost:8000/control/start');
+      }
+      setIsRunning(!isRunning);
+    } catch (error) {
+      console.error("Error toggling simulation:", error);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#0f1117] text-gray-100 font-sans selection:bg-blue-500/30">
+      {/* Header */}
+      <header className="bg-[#161b22] border-b border-gray-800 sticky top-0 z-50 backdrop-blur-md bg-opacity-80">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <div className="p-2 bg-blue-600 rounded-lg shadow-lg shadow-blue-600/20">
+              <Globe className="text-white" size={24} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-white">
+                Digital Energy Grid
+              </h1>
+              <p className="text-sm text-gray-400 font-medium">Autonomous Multi-Agent Orchestration</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-full border border-gray-700">
+              <div className={`w-2 h-2 rounded-full ${isRunning ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+              <span className="text-sm font-medium text-gray-300">{isRunning ? 'System Active' : 'System Paused'}</span>
+            </div>
+            
+            <button 
+              onClick={toggleSimulation}
+              className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-bold transition-all transform active:scale-95 ${
+                isRunning 
+                  ? 'bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/50' 
+                  : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/25'
+              }`}
+            >
+              {isRunning ? <Pause size={18} /> : <Play size={18} />}
+              {isRunning ? 'Stop Simulation' : 'Start Simulation'}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* Left Column: Agent Grid */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold flex items-center gap-2 text-gray-100">
+                <Activity size={20} className="text-blue-400" />
+                Regional Network Status
+              </h2>
+              <span className="text-sm text-gray-500">Updating real-time...</span>
+            </div>
+            <AgentStatus data={status} />
+          </div>
+          
+          {/* Right Column: Metrics & Logs */}
+          <div className="space-y-8">
+             {/* Energy Chart Card */}
+             <div>
+               <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-gray-100">
+                 <Zap size={20} className="text-yellow-400" />
+                 Global Metrics
+               </h2>
+               <EnergyChart logs={status?.logs || []} />
+             </div>
+             
+             {/* Logs Console */}
+             <div className="bg-[#161b22] rounded-2xl border border-gray-800 overflow-hidden flex flex-col h-[400px]">
+               <div className="px-4 py-3 border-b border-gray-800 bg-gray-900/50 flex items-center gap-2">
+                 <Terminal size={16} className="text-gray-400" />
+                 <h3 className="font-bold text-sm text-gray-300">System Event Log</h3>
+               </div>
+               <div className="flex-1 overflow-y-auto p-4 font-mono text-xs space-y-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+                 {status?.logs?.slice().reverse().map((log: string, i: number) => (
+                   <div key={i} className="flex gap-3 text-gray-400 hover:text-gray-200 transition-colors border-b border-gray-800/50 pb-1 last:border-0">
+                     <span className="text-gray-600 select-none">[{new Date().toLocaleTimeString()}]</span>
+                     <span>{log}</span>
+                   </div>
+                 ))}
+                 {!status?.logs?.length && (
+                   <div className="text-gray-600 italic text-center mt-10">No events recorded yet...</div>
+                 )}
+               </div>
+             </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default Dashboard;
