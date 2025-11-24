@@ -3,12 +3,14 @@ from agents.regional_agent import RegionalAgent
 from typing import List, Dict, Optional
 from agents.regional_agent import RegionalAgent
 from beckn_models import ComputeJob, BecknCatalog, BecknItem, OrderState, BecknOrder
+from beckn_client import BecknClient
 
 class GlobalAgent:
     def __init__(self):
         self.regional_agents: List[RegionalAgent] = []
         self.task_queue: List[ComputeJob] = []
         self.logs = []
+        self.beckn_client = BecknClient()
 
     def register_regional_agent(self, agent: RegionalAgent):
         self.regional_agents.append(agent)
@@ -42,13 +44,31 @@ class GlobalAgent:
             # 1. Search (Broadcast to all regions)
             all_items: List[tuple[BecknItem, RegionalAgent, str]] = [] # (Item, Region, ProviderID)
             
-            for region in self.regional_agents:
-                catalog = region.handle_beckn_search()
-                if catalog:
-                    for provider in catalog.providers:
-                        for item in provider.items:
-                            if item.matched:
+            # Use Beckn Client to discover
+            try:
+                discovery_result = self.beckn_client.discover()
+                # Parse discovery result into BecknCatalog
+                # Note: Sandbox returns raw JSON, we need to map it if we want to use our models
+                # For now, let's assume we can extract items directly or pass raw data
+                
+                # Simplified: We'll let the Regional Agents process the raw discovery data
+                # In a real BAP, the Global Agent might route based on location.
+                # Here, we'll give the same discovery result to all regions to filter.
+                
+                for region in self.regional_agents:
+                    # Pass raw discovery data to region to process/filter
+                    region.process_discovery_result(discovery_result)
+                    
+                    # Then get the catalog as before (now populated from external data)
+                    catalog = region.get_beckn_catalog()
+                    if catalog:
+                        for provider in catalog.providers:
+                            for item in provider.items:
+                                # We assume matched=True for now
                                 all_items.append((item, region, provider.id))
+                                
+            except Exception as e:
+                self.log_event(f"Discovery failed: {e}")
             
             # 2. Selection Logic (Find best slot)
             best_match = None
@@ -76,27 +96,14 @@ class GlobalAgent:
             if best_match:
                 item, region, provider_id = best_match
                 
-                # 3. Order Lifecycle
-                # 3. Order Lifecycle
+                # 3. Order Lifecycle (Delegated to Region/Local Agent)
                 try:
-                    # Select (Get Quote)
-                    quote_order = region.handle_beckn_select(provider_id, item.id)
-                    if quote_order and quote_order.state == OrderState.QUOTE_REQUESTED:
-                        # Init
-                        # In real Beckn, we'd pass the quote details.
-                        init_order = region.handle_beckn_init(provider_id, item.id, job)
-                        if init_order:
-                            # Confirm
-                            confirmed_order = region.handle_beckn_confirm(provider_id, init_order.id)
-                            if confirmed_order and confirmed_order.state == OrderState.CONFIRMED:
-                                self.log_event(f"Job {job.job_id} assigned to {provider_id} in {region.region} via Beckn.")
-                                assigned = True
-                            else:
-                                self.log_event(f"Job {job.job_id} confirmation failed.")
-                        else:
-                            self.log_event(f"Job {job.job_id} init failed.")
+                    success = region.execute_order_lifecycle(provider_id, item.id, job)
+                    if success:
+                        self.log_event(f"Job {job.job_id} assigned to {provider_id} in {region.region} via Beckn Sandbox.")
+                        assigned = True
                     else:
-                        self.log_event(f"Job {job.job_id} select failed (Quote not received).")
+                        self.log_event(f"Job {job.job_id} failed during Beckn lifecycle.")
                 except Exception as e:
                     self.log_event(f"Error during Beckn flow for {job.job_id}: {e}")
             

@@ -1,6 +1,10 @@
 from typing import List, Dict, Optional, Tuple
 from agents.local_agent import LocalAgent
-from beckn_models import BecknCatalog, BecknProvider, BecknDescriptor, ComputeJob, BecknOrder
+from beckn_models import (
+    BecknCatalog, BecknProvider, BecknDescriptor, ComputeJob, BecknOrder,
+    BecknItem, BecknPrice, BecknComputeEnergyWindow, BecknGridParameters,
+    BecknTimeWindow
+)
 
 class RegionalAgent:
     def __init__(self, name: str, region: str):
@@ -41,10 +45,13 @@ class RegionalAgent:
             if agent.node.is_available:
                 total_capacity_available += 1
 
-        self.aggregated_catalog = BecknCatalog(
-            descriptor=BecknDescriptor(name=f"Catalog for {self.region}"),
-            providers=all_providers
-        )
+        # In BAP mode, we aggregate from the external discovery result
+        # If no discovery result yet, we might have an empty catalog
+        if not self.aggregated_catalog:
+             self.aggregated_catalog = BecknCatalog(
+                descriptor=BecknDescriptor(name=f"Catalog for {self.region}"),
+                providers=[]
+            )
         
         # Backward compatibility for frontend
         total_capacity = len(self.local_agents)
@@ -87,11 +94,97 @@ class RegionalAgent:
 
     # --- Beckn Protocol Routing ---
 
-    def handle_beckn_search(self) -> BecknCatalog:
+    def process_discovery_result(self, discovery_data: Dict):
+        """
+        Processes raw discovery data from Beckn Client and updates the internal catalog.
+        """
+        print(f"DEBUG: Discovery Data: {discovery_data}")
+        
+        providers = []
+        if 'message' in discovery_data and 'catalog' in discovery_data['message']:
+            catalog = discovery_data['message']['catalog']
+            raw_providers = catalog.get('beckn:providers', [])
+            
+            for raw_provider in raw_providers:
+                # Map Provider
+                provider_id = raw_provider.get('beckn:id', 'unknown')
+                provider_desc = raw_provider.get('beckn:descriptor', {})
+                
+                items = []
+                for raw_item in raw_provider.get('beckn:items', []):
+                    # Map Item
+                    item_id = raw_item.get('beckn:id', 'unknown')
+                    item_desc = raw_item.get('beckn:descriptor', {})
+                    price_info = raw_item.get('beckn:price', {})
+                    
+                    # Extract Carbon
+                    carbon = 0
+                    attrs = raw_item.get('beckn:itemAttributes', {})
+                    grid_params = attrs.get('beckn:gridParameters', {})
+                    carbon = grid_params.get('carbonIntensity', 0)
+                    
+                    # Create BecknItem
+                    # Note: We are using our internal models which might expect slightly different structure
+                    # so we map carefully.
+                    
+                    # Create Item Attributes
+                    # We need to populate BecknComputeEnergyWindow structure if possible
+                    # For now, we just ensure we can extract carbon in aggregate_data
+                    
+                    # Construct Item
+                    item = BecknItem(
+                        id=item_id,
+                        descriptor=BecknDescriptor(name=item_desc.get('name', 'Unknown Item')),
+                        price=BecknPrice(currency=price_info.get('currency', 'USD'), value=str(price_info.get('value', '0'))),
+                        category_id="compute",
+                        matched=True,
+                        item_attributes=BecknComputeEnergyWindow(
+                            slot_id=f"slot-{item_id}",
+                            time_window=BecknTimeWindow(
+                                start="2025-11-24T12:00:00Z",
+                                end="2025-11-24T16:00:00Z"
+                            ),
+                            grid_parameters=BecknGridParameters(
+                                carbon_intensity=carbon,
+                                grid_area="UK-South", # Placeholder
+                                grid_zone="UK-South-1", # Placeholder
+                                renewable_mix=50 # Placeholder
+                            )
+                        )
+                    )
+                    items.append(item)
+                
+                if items:
+                    provider = BecknProvider(
+                        id=provider_id,
+                        descriptor=BecknDescriptor(name=provider_desc.get('name', 'Unknown Provider')),
+                        items=items
+                    )
+                    providers.append(provider)
+        
+        # Update aggregated catalog
+        self.aggregated_catalog = BecknCatalog(
+            descriptor=BecknDescriptor(name=f"Catalog for {self.region}"),
+            providers=providers
+        )
+
+    def get_beckn_catalog(self) -> BecknCatalog:
         """
         Returns the aggregated catalog.
         """
         return self.aggregated_catalog
+
+    def execute_order_lifecycle(self, provider_id: str, item_id: str, job: ComputeJob) -> bool:
+        """
+        Routes the order execution to a local agent.
+        For the hackathon, we can pick any local agent to act as the 'buyer' manager.
+        """
+        if not self.local_agents:
+            return False
+            
+        # Pick the first agent to manage this order
+        agent = self.local_agents[0]
+        return agent.execute_order_lifecycle(item_id, provider_id, job)
 
     def handle_beckn_select(self, provider_id: str, item_id: str) -> Optional[BecknOrder]:
         """

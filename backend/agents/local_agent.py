@@ -10,6 +10,7 @@ from beckn_models import (
     BecknComputeEnergyWindow, BecknGridParameters, BecknTimeWindow,
     BecknOffer, BecknOrderItem
 )
+from beckn_client import BecknClient
 
 class LocalAgent:
     def __init__(self, name: str, region: str, generator: DataGenerator):
@@ -17,14 +18,18 @@ class LocalAgent:
         self.region = region
         self.generator = generator
         
-        # Initialize ComputeNode state
+        self.beckn_client = BecknClient()
+        self.active_external_orders = {} # Map job_id -> external_order_id
+        
+        # We keep 'node' for compatibility with the dashboard, but it represents the "virtual" capacity
+        # we have secured from the grid.
         self.node = ComputeNode(
             node_id=str(uuid.uuid4()),
             cluster_id=f"cluster_{name}",
             region_id=region,
-            max_power_kw=10.0, # 10 kW node
+            max_power_kw=10.0, 
             idle_power_kw=0.5,
-            compute_capacity={"cpu_cores": 64, "gpu_type": "A100", "memory_gb": 512},
+            compute_capacity={"cpu_cores": 64, "gpu_type": "Virtual A100", "memory_gb": 512},
             variable_cost_per_hr=2.5
         )
         
@@ -53,11 +58,17 @@ class LocalAgent:
             if order:
                 order.state = OrderState.COMPLETED
 
-        # Update power draw (simplified)
-        # Base idle + (active jobs * 1.5 kW)
+        # Poll status for active orders
+        for job_id, external_order_id in self.active_external_orders.items():
+            # In a real app, we'd know the BPP ID from the order. 
+            # For sandbox, we hardcode or store it.
+            # Simplified: Just print status check
+            pass
+
+        # Update power draw (based on active jobs)
         active_power = len(self.current_jobs) * 1.5
         self.node.current_power_draw_kw = self.node.idle_power_kw + active_power
-        self.node.is_available = self.node.current_power_draw_kw < self.node.max_power_kw
+        self.node.is_available = True # Always try to buy more if needed
 
     def get_beckn_catalog(self) -> BecknCatalog:
         """
@@ -117,100 +128,47 @@ class LocalAgent:
 
     # --- Beckn Order Lifecycle ---
 
-    def handle_beckn_select(self, item_id: str) -> Optional[BecknOrder]:
+    def execute_order_lifecycle(self, item_id: str, provider_id: str, job: ComputeJob) -> bool:
         """
-        Step 1: Select - Check availability and return quote (Order with Quote).
+        Executes the full Beckn order lifecycle (Select -> Init -> Confirm) against the sandbox.
         """
-        if not self.node.is_available:
-            return None
+        try:
+            transaction_id = str(uuid.uuid4())
+            bpp_id = provider_id # Assuming provider_id is the BPP ID
+            bpp_uri = f"https://{provider_id}/bpp" # Placeholder URI
             
-        # Re-calculate price (should match catalog logic)
-        energy_price = self.energy_data.get('price', 0)
-        hourly_price = self.node.variable_cost_per_hr + (energy_price * 0.01)
-        
-        offer = BecknOffer(
-            id=f"offer_{uuid.uuid4()}",
-            descriptor=BecknDescriptor(name=f"Offer for {item_id}"),
-            provider_id=self.name,
-            item_ids=[item_id],
-            price=BecknPrice(currency="USD", value=str(round(hourly_price, 2)))
-        )
-        
-        order_item = BecknOrderItem(
-            line_id=f"line_{uuid.uuid4()}",
-            ordered_item_id=item_id,
-            accepted_offer=offer
-        )
-        
-        # Return Order in QUOTE_REQUESTED state (or similar, acting as the quote response)
-        # In Beckn 'on_select', we return the order with the quote.
-        return BecknOrder(
-            id=f"order_{uuid.uuid4()}",
-            state=OrderState.QUOTE_REQUESTED,
-            seller_id=self.name,
-            buyer_id="global_agent", # Placeholder
-            items=[order_item]
-        )
+            # 1. Select
+            select_res = self.beckn_client.select(transaction_id, bpp_id, bpp_uri, item_id, provider_id)
+            if 'error' in select_res:
+                return False
+                
+            # 2. Init
+            # We use the order details from select response
+            order_details = select_res.get('message', {}).get('order', {})
+            init_res = self.beckn_client.init(transaction_id, bpp_id, bpp_uri, order_details)
+            if 'error' in init_res:
+                return False
 
-    def handle_beckn_init(self, item_id: str, job_details: ComputeJob) -> BecknOrder:
-        """
-        Step 2: Init - Initialize order with job details.
-        """
-        # In a real flow, we would validate the quote from 'select' here.
-        # For now, we create a new order or update existing if we had state.
-        
-        # Re-create offer/item for the order (simplified)
-        # Ideally we pass the 'select' result to 'init'
-        
-        # ... reusing select logic for offer creation ...
-        energy_price = self.energy_data.get('price', 0)
-        hourly_price = self.node.variable_cost_per_hr + (energy_price * 0.01)
-        
-        offer = BecknOffer(
-            id=f"offer_{uuid.uuid4()}",
-            descriptor=BecknDescriptor(name=f"Offer for {item_id}"),
-            provider_id=self.name,
-            item_ids=[item_id],
-            price=BecknPrice(currency="USD", value=str(round(hourly_price, 2)))
-        )
-        
-        order_item = BecknOrderItem(
-            line_id=f"line_{uuid.uuid4()}",
-            ordered_item_id=item_id,
-            accepted_offer=offer
-        )
-        
-        order_id = str(uuid.uuid4())
-        order = BecknOrder(
-            id=order_id,
-            state=OrderState.INITIALIZED,
-            seller_id=self.name,
-            buyer_id="global_agent",
-            items=[order_item],
-            job_details=job_details
-        )
-        self.orders[order_id] = order
-        return order
-
-    def handle_beckn_confirm(self, order_id: str) -> BecknOrder:
-        """
-        Step 3: Confirm - Finalize agreement and schedule job.
-        """
-        if order_id not in self.orders:
-            raise ValueError("Order not found")
+            # 3. Confirm
+            order_details = init_res.get('message', {}).get('order', {})
+            confirm_res = self.beckn_client.confirm(transaction_id, bpp_id, bpp_uri, order_details)
             
-        order = self.orders[order_id]
-        
-        if self.node.is_available:
-            order.state = OrderState.CONFIRMED
-            # Start the job
-            if order.job_details:
-                self.current_jobs[order.job_details.job_id] = order.job_details
-                order.job_details.status = "ASSIGNED"
-        else:
-            order.state = OrderState.CANCELLED
+            if 'message' in confirm_res and 'order' in confirm_res['message']:
+                confirmed_order = confirm_res['message']['order']
+                state = confirmed_order.get('beckn:orderStatus')
+                
+                if state in ["CONFIRMED", "ACCEPTED", "PENDING"]: # Sandbox might return PENDING
+                    # Success
+                    self.current_jobs[job.job_id] = job
+                    job.status = "ASSIGNED"
+                    self.active_external_orders[job.job_id] = confirmed_order.get('beckn:id')
+                    return True
             
-        return order
+            return False
+            
+        except Exception as e:
+            print(f"Order lifecycle failed: {e}")
+            return False
 
     def get_report(self):
         """
