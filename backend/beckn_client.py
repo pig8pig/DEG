@@ -16,7 +16,7 @@ class BecknClient:
         self.domain = "beckn.one:DEG:compute-energy:1.0"
 
     def _create_context(self, action: str, transaction_id: str = None, message_id: str = None, bpp_id: str = None, bpp_uri: str = None) -> Dict:
-        return {
+        context = {
             "version": "2.0.0",
             "action": action,
             "domain": self.domain,
@@ -25,13 +25,19 @@ class BecknClient:
             "transaction_id": transaction_id or str(uuid.uuid4()),
             "bap_id": self.bap_id,
             "bap_uri": self.bap_uri,
-            "bpp_id": bpp_id,
-            "bpp_uri": bpp_uri,
-            "ttl": "PT30S",
-            "schema_context": [
+            "ttl": "PT30S"
+        }
+        # Only include bpp_id and bpp_uri if provided (not needed for discover)
+        if bpp_id:
+            context["bpp_id"] = bpp_id
+        if bpp_uri:
+            context["bpp_uri"] = bpp_uri
+        # Only include schema_context for actions that need it
+        if action in ["discover", "init", "confirm"]:
+            context["schema_context"] = [
                 "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/ComputeEnergy/v1/context.jsonld"
             ]
-        }
+        return context
 
     def discover(self, query: str = "Grid flexibility windows") -> Dict:
         url = f"{self.base_url}/discover"
@@ -183,5 +189,99 @@ class BecknClient:
                 }
             }
         }
-        response = requests.post(url, headers=self.headers, json=payload)
-        return response.json()
+        try:
+            response = requests.post(url, headers=self.headers, json=payload, timeout=5)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                print(f"BecknClient Error: Status {response.status_code}, Response: {response.text}")
+        except Exception as e:
+            print(f"BecknClient Exception: {e}")
+        
+        return {"message": {"order": {"beckn:id": order_id, "beckn:orderStatus": "UNKNOWN"}}}
+
+    def update(self, transaction_id: str, bpp_id: str, bpp_uri: str, order_id: str, update_type: str, update_details: Dict) -> Dict:
+        """Update an order with flexibility actions or acknowledgements"""
+        url = f"{self.base_url}/update"
+        payload = {
+            "context": self._create_context("update", transaction_id=transaction_id, bpp_id=bpp_id, bpp_uri=bpp_uri),
+            "message": {
+                "order": {
+                    "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/core/v2/context.jsonld",
+                    "@type": "beckn:Order",
+                    "beckn:id": order_id,
+                    "beckn:orderStatus": "IN_PROGRESS",
+                    "beckn:seller": bpp_id,
+                    "beckn:buyer": self.bap_id,
+                    "beckn:fulfillment": update_details.get("fulfillment", {}),
+                    "beckn:orderAttributes": {
+                        "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/ComputeEnergy/v1/context.jsonld",
+                        "@type": "beckn:ComputeEnergyOrder",
+                        "beckn:updateType": update_type,
+                        "beckn:updateTimestamp": datetime.utcnow().isoformat() + "Z"
+                    }
+                }
+            }
+        }
+        
+        try:
+            response = requests.post(url, headers=self.headers, json=payload, timeout=5)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                print(f"BecknClient Error: Status {response.status_code}, Response: {response.text}")
+        except Exception as e:
+            print(f"BecknClient Exception: {e}")
+        
+        return payload
+
+    def rating(self, transaction_id: str, bpp_id: str, bpp_uri: str, order_id: str, rating_value: int, feedback: Dict = None) -> Dict:
+        """Submit a rating for a completed order"""
+        url = f"{self.base_url}/rating"
+        message = {
+            "id": order_id,
+            "value": rating_value,
+            "best": 5,
+            "worst": 1,
+            "category": "grid_service"
+        }
+        if feedback:
+            message["feedback"] = feedback
+        
+        payload = {
+            "context": self._create_context("rating", transaction_id=transaction_id, bpp_id=bpp_id, bpp_uri=bpp_uri),
+            "message": message
+        }
+        
+        try:
+            response = requests.post(url, headers=self.headers, json=payload, timeout=5)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                print(f"BecknClient Error: Status {response.status_code}, Response: {response.text}")
+        except Exception as e:
+            print(f"BecknClient Exception: {e}")
+        
+        return {"message": {"ack": {"status": "ACK"}}}
+
+    def support(self, transaction_id: str, bpp_id: str, bpp_uri: str, order_id: str) -> Dict:
+        """Request support for an order"""
+        url = f"{self.base_url}/support"
+        payload = {
+            "context": self._create_context("support", transaction_id=transaction_id, bpp_id=bpp_id, bpp_uri=bpp_uri),
+            "message": {
+                "ref_id": order_id,
+                "ref_type": "order"
+            }
+        }
+        
+        try:
+            response = requests.post(url, headers=self.headers, json=payload, timeout=5)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                print(f"BecknClient Error: Status {response.status_code}, Response: {response.text}")
+        except Exception as e:
+            print(f"BecknClient Exception: {e}")
+        
+        return {"message": {"support": {"email": "support@example.com", "phone": "+44 1234 567890"}}}

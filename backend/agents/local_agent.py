@@ -13,6 +13,20 @@ from beckn_models import (
 from beckn_client import BecknClient
 
 class LocalAgent:
+    # Define location assignments for each agent (agent name -> Beckn API location)
+    # All 9 UK cities available in the Beckn API
+    LOCATION_ASSIGNMENTS = {
+        "Cambridge": "Cambridge",
+        "London": "London",
+        "Manchester": "Manchester",
+        "Birmingham": "Birmingham",
+        "Edinburgh": "Edinburgh",
+        "Bristol": "Bristol",
+        "Liverpool": "Liverpool",
+        "Glasgow": "Glasgow",
+        "Leeds": "Leeds",
+    }
+    
     def __init__(self, name: str, region: str, generator: DataGenerator, lat: float = 0.0, lon: float = 0.0):
         self.name = name
         self.region = region
@@ -22,6 +36,17 @@ class LocalAgent:
         
         self.beckn_client = BecknClient()
         self.active_external_orders = {} # Map job_id -> external_order_id
+        
+        # Discovery tracking
+        self.discovery_history = []  # List of discovery results with timestamps
+        self.last_discovery_time = None
+        self.discovery_count = 0
+        self.update_tick = 0  # Track update cycles
+        self.discovered_locations = []  # Store discovered UK locations from Beckn API
+        
+        # Assign this agent to a specific UK location
+        self.assigned_location = self.LOCATION_ASSIGNMENTS.get(name, "Cambridge")
+        self.location_data = None  # Will store data for assigned location only
         
         # We keep 'node' for compatibility with the dashboard, but it represents the "virtual" capacity
         # we have secured from the grid.
@@ -43,8 +68,14 @@ class LocalAgent:
         """
         Updates the local agent's state: energy data, capacity, etc.
         """
+        self.update_tick += 1
+        
         # Get fresh energy data
         self.energy_data = self.generator.get_energy_data(timestamp, self.region)
+        
+        # Perform discovery every 5 ticks (~10 seconds in simulation)
+        if self.update_tick % 5 == 0:
+            self.discover_energy_slots()
         
         # Simulate tasks finishing
         finished_job_ids = []
@@ -71,6 +102,102 @@ class LocalAgent:
         active_power = len(self.current_jobs) * 1.5
         self.node.current_power_draw_kw = self.node.idle_power_kw + active_power
         self.node.is_available = True # Always try to buy more if needed
+
+    def discover_energy_slots(self) -> Dict:
+        """
+        Uses Beckn discover API to search for energy slots and extract UK location data.
+        Filters results to show only data for this agent's assigned location.
+        """
+        query = "Grid flexibility windows"
+        
+        try:
+            result = self.beckn_client.discover(query=query)
+            
+            # Extract locations from Beckn response
+            locations = self._extract_locations_from_discovery(result)
+            if locations:
+                self.discovered_locations = locations
+                
+                # Filter to find this agent's assigned location
+                assigned_loc = next(
+                    (loc for loc in locations if loc["locality"] == self.assigned_location),
+                    None
+                )
+                
+                if assigned_loc:
+                    self.location_data = assigned_loc
+            
+            # Track discovery with assigned location
+            discovery_record = {
+                "timestamp": datetime.now().isoformat(),
+                "city": self.assigned_location,
+                "query": query,
+                "result": result,
+                "agent_name": self.name,
+                "region": self.region,
+                "discovered_locations": locations,
+                "assigned_location": self.assigned_location,
+                "location_data": self.location_data  # Only this location's data
+            }
+            
+            # Keep last 10 discoveries
+            self.discovery_history.append(discovery_record)
+            if len(self.discovery_history) > 10:
+                self.discovery_history.pop(0)
+            
+            self.last_discovery_time = datetime.now()
+            self.discovery_count += 1
+            
+            return result
+            
+        except Exception as e:
+            print(f"Discovery failed for {self.name}: {e}")
+            return {"error": str(e)}
+    
+    def _extract_locations_from_discovery(self, result: Dict) -> list:
+        """
+        Extract location data from Beckn discovery response.
+        Returns list of location dictionaries with grid parameters.
+        """
+        locations = []
+        
+        try:
+            catalogs = result.get("message", {}).get("catalogs", [])
+            
+            for catalog in catalogs:
+                items = catalog.get("beckn:items", [])
+                
+                for item in items:
+                    # Extract location from beckn:availableAt
+                    available_at = item.get("beckn:availableAt", [])
+                    if available_at and len(available_at) > 0:
+                        location_data = available_at[0]
+                        address = location_data.get("address", {})
+                        
+                        # Extract grid parameters
+                        item_attrs = item.get("beckn:itemAttributes", {})
+                        grid_params = item_attrs.get("beckn:gridParameters", {})
+                        
+                        location_info = {
+                            "item_id": item.get("beckn:id", ""),
+                            "name": item.get("beckn:descriptor", {}).get("schema:name", ""),
+                            "locality": address.get("addressLocality", "Unknown"),
+                            "region": address.get("addressRegion", "Unknown"),
+                            "country": address.get("addressCountry", "GB"),
+                            "grid_area": grid_params.get("gridArea", ""),
+                            "grid_zone": grid_params.get("gridZone", ""),
+                            "renewable_mix": grid_params.get("renewableMix", 0),
+                            "carbon_intensity": grid_params.get("carbonIntensity", 0),
+                            "available_capacity": item_attrs.get("beckn:capacityParameters", {}).get("availableCapacity", 0)
+                        }
+                        
+                        locations.append(location_info)
+            
+            return locations
+            
+        except Exception as e:
+            print(f"Error extracting locations: {e}")
+            return []
 
     def get_beckn_catalog(self) -> BecknCatalog:
         """
@@ -184,4 +311,20 @@ class LocalAgent:
             "energy_data": self.energy_data,
             "active_tasks_count": len(self.current_jobs),
             "catalog": self.get_beckn_catalog().dict()
+        }
+    
+    def get_discovery_data(self):
+        """
+        Returns discovery data for frontend display.
+        Includes assigned location and location-specific data.
+        """
+        return {
+            "agent_name": self.name,
+            "region": self.region,
+            "discovery_count": self.discovery_count,
+            "last_discovery_time": self.last_discovery_time.isoformat() if self.last_discovery_time else None,
+            "discovery_history": self.discovery_history[-5:],  # Last 5 discoveries
+            "discovered_locations": self.discovered_locations,  # All UK locations
+            "assigned_location": self.assigned_location,  # This agent's assigned location
+            "location_data": self.location_data  # Data for assigned location only
         }
