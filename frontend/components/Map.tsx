@@ -27,6 +27,7 @@ interface Agent {
         renewable_mix: number;
     };
     active_tasks_count: number;
+    cost_score?: number; // Added cost_score
 }
 
 interface MapProps {
@@ -36,10 +37,12 @@ interface MapProps {
 const Map = ({ agents }: MapProps) => {
     const ukCenter: [number, number] = [54.5, -4.0];
 
-    const getColor = (carbon: number) => {
-        if (carbon < 50) return '#22c55e'; // Green
-        if (carbon < 150) return '#eab308'; // Yellow
-        return '#ef4444'; // Red
+    // Updated to use cost_score
+    const getColor = (score: number) => {
+        // Lower score is better
+        if (score < 40) return '#22c55e'; // Green (Good)
+        if (score < 70) return '#eab308'; // Yellow (Medium)
+        return '#ef4444'; // Red (Bad)
     };
 
     const getRegionColor = (region: string) => {
@@ -66,7 +69,7 @@ const Map = ({ agents }: MapProps) => {
                         center={[agent.location.lat, agent.location.lon]}
                         pathOptions={{
                             color: getRegionColor(agent.region),
-                            fillColor: getColor(agent.energy_data.carbon_intensity),
+                            fillColor: getColor(agent.cost_score ?? 100), // Default to 100 (Bad) if undefined
                             fillOpacity: 0.7,
                             weight: 3
                         }}
@@ -81,8 +84,14 @@ const Map = ({ agents }: MapProps) => {
                                         <span style={{ color: getRegionColor(agent.region) }}>{agent.region}</span>
                                     </div>
                                     <div className="flex justify-between">
+                                        <span className="text-gray-400">Score:</span>
+                                        <span style={{ color: getColor(agent.cost_score ?? 100) }} className="font-bold">
+                                            {agent.cost_score?.toFixed(1) ?? 'N/A'}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between">
                                         <span className="text-gray-400">Carbon:</span>
-                                        <span style={{ color: getColor(agent.energy_data.carbon_intensity) }}>
+                                        <span>
                                             {agent.energy_data.carbon_intensity} gCO2/kWh
                                         </span>
                                     </div>
@@ -121,19 +130,19 @@ const Map = ({ agents }: MapProps) => {
                     </div>
                 </div>
                 <div className="my-2 border-t border-gray-700"></div>
-                <div className="font-bold mb-2 text-gray-300">Carbon Intensity</div>
+                <div className="font-bold mb-2 text-gray-300">Score</div>
                 <div className="space-y-1.5">
                     <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                        <span className="text-gray-400">Low (&lt;50)</span>
+                        <span className="text-gray-400">Good (&lt;40)</span>
                     </div>
                     <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                        <span className="text-gray-400">Medium (&lt;150)</span>
+                        <span className="text-gray-400">Medium (&lt;70)</span>
                     </div>
                     <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                        <span className="text-gray-400">High (&gt;150)</span>
+                        <span className="text-gray-400">Poor (&ge;70)</span>
                     </div>
                 </div>
             </div>

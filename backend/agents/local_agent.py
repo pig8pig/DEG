@@ -601,3 +601,60 @@ class LocalAgent:
         
         # Normalize to 0-100
         return sigmoid * 100.0
+
+    def check_for_price_spike(self) -> bool:
+        """
+        Checks if the current energy price exceeds a threshold.
+        Threshold: Price > 0.30 GBP/kWh (approx 3x normal)
+        """
+        current_price = self.energy_data.get('price', 0.0)
+        # Threshold could be dynamic, but fixed for now as per plan
+        PRICE_THRESHOLD = 0.30 
+        
+        if current_price > PRICE_THRESHOLD:
+            print(f"[{self.name}] PRICE SPIKE DETECTED: {current_price:.3f} > {PRICE_THRESHOLD}")
+            return True
+        return False
+
+    def trigger_workload_shift(self, job_id: str, target_agent_name: str) -> bool:
+        """
+        Sends a Beckn Update request to signal a workload shift.
+        """
+        if job_id not in self.active_external_orders:
+            return False
+            
+        external_order_id = self.active_external_orders[job_id]
+        transaction_id = str(uuid.uuid4())
+        
+        # Construct flexibility action payload
+        update_details = {
+            "beckn:flexibilityAction": {
+                "actionType": "workload_shift",
+                "actionReason": "grid_stress_response",
+                "actionTimestamp": datetime.now().isoformat(),
+                "shiftDetails": {
+                    "sourceLocation": self.assigned_location,
+                    "targetLocation": target_agent_name, # Simplified: using agent name as location proxy
+                    "estimatedShiftTime": "PT5M"
+                }
+            }
+        }
+        
+        # Call Beckn Update
+        # In a real scenario, we'd use the stored BPP URI. Here we assume a standard one or use the client's default.
+        bpp_id = self.name # Self is the provider
+        bpp_uri = f"https://{self.name}/bpp"
+        
+        print(f"[{self.name}] Sending Beckn Update (Workload Shift) for Order {external_order_id}")
+        response = self.beckn_client.update(
+            transaction_id=transaction_id,
+            bpp_id=bpp_id,
+            bpp_uri=bpp_uri,
+            order_id=external_order_id,
+            update_type="flexibility_response",
+            update_details=update_details
+        )
+        
+        if 'error' not in response:
+            return True
+        return False

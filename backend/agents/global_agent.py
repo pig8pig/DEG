@@ -3,6 +3,7 @@ from agents.regional_agent import RegionalAgent
 from beckn_models import ComputeJob, BecknCatalog, BecknItem, OrderState, BecknOrder
 from beckn_client import BecknClient
 from datetime import datetime
+from llm_client import LLMClient
 
 class GlobalAgent:
     def __init__(self):

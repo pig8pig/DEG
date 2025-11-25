@@ -30,10 +30,8 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchData();
-    fetchSimulationTime();
     const interval = setInterval(() => {
       fetchData();
-      fetchSimulationTime();
     }, 2000); // Poll every 2 seconds
     return () => clearInterval(interval);
   }, []);
@@ -99,10 +97,6 @@ const Dashboard = () => {
           </div>
 
           <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-full border border-gray-700">
-              <div className={`w-2 h-2 rounded-full ${isRunning ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-              <span className="text-sm font-medium text-gray-300">{isRunning ? 'System Active' : 'System Paused'}</span>
-            </div>
 
             <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-full border border-gray-700">
               <span className="text-sm font-mono text-blue-400 font-bold">
