@@ -34,6 +34,13 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   const toggleSimulation = async () => {
     try {
       if (isRunning) {
@@ -75,6 +82,12 @@ const Dashboard = () => {
             <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-full border border-gray-700">
               <div className={`w-2 h-2 rounded-full ${isRunning ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
               <span className="text-sm font-medium text-gray-300">{isRunning ? 'System Active' : 'System Paused'}</span>
+            </div>
+
+            <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-full border border-gray-700">
+              <span className="text-sm font-mono text-blue-400 font-bold">
+                {currentTime.toLocaleTimeString([], { hour12: false })}
+              </span>
             </div>
 
             <Link
@@ -186,7 +199,7 @@ const Dashboard = () => {
           <AgentInteractionHub data={status} />
         </div>
       </main>
-    </div>
+    </div >
   );
 };
 

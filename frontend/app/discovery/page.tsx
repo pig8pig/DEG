@@ -12,6 +12,9 @@ interface DiscoveryRecord {
   discovered_locations?: any[];  // Optional array of UK locations from Beckn API
   assigned_location?: string;  // Agent's assigned UK location
   location_data?: any;  // Location-specific data for assigned location
+  cost_score?: number; // Calculated score based on price, carbon, and load
+  available_capacity?: number;  // Current available capacity
+  total_capacity?: number;  // Total capacity
 }
 
 interface AgentDiscoveryData {
@@ -20,6 +23,8 @@ interface AgentDiscoveryData {
   discovery_count: number;
   last_discovery_time: string | null;
   discovery_history: DiscoveryRecord[];
+  available_capacity?: number;  // Current available capacity
+  total_capacity?: number;  // Total capacity
 }
 
 interface DiscoveryStatus {
@@ -149,13 +154,22 @@ export default function DiscoveryPage() {
           return (
             <div
               key={idx}
-              className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 hover:border-purple-400/50 transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/20"
+              className="relative bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 hover:border-purple-400/50 transition-all duration-300 hover:shadow-2xl hover:shadow-purple-500/20"
             >
+              {/* Score badge top right */}
+              {latestDiscovery && latestDiscovery.cost_score !== undefined && (
+                <div className={`absolute top-3 right-3 px-3 py-1.5 rounded-lg font-bold text-sm shadow-lg ${latestDiscovery.cost_score < 30 ? 'bg-green-500 text-white' :
+                  latestDiscovery.cost_score < 70 ? 'bg-yellow-500 text-gray-900' : 'bg-red-500 text-white'
+                  }`}>
+                  {Number(latestDiscovery.cost_score).toFixed(1)}
+                </div>
+              )}
               {/* Agent Header */}
               <div className="mb-4">
                 <h2 className="text-xl font-bold text-white mb-1">{agent.agent_name}</h2>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-1">
                   <span className="text-purple-300 text-sm">📍 {assignedLocation}</span>
+                  <span className="text-blue-300 text-xs">🌐 Region: {agent.region}</span>
                 </div>
               </div>
 
@@ -204,7 +218,11 @@ export default function DiscoveryPage() {
                       </div>
                       <div className="flex items-center justify-between bg-black/30 rounded-lg p-2">
                         <span className="text-gray-400 text-xs">Available Capacity</span>
-                        <span className="text-blue-400 font-bold">{locationData.available_capacity} MW</span>
+                        <span className="text-blue-400 font-bold">
+                          {agent.available_capacity !== undefined && agent.total_capacity !== undefined
+                            ? `${agent.available_capacity} / ${agent.total_capacity} slots`
+                            : 'N/A'}
+                        </span>
                       </div>
                       {locationData.price && (
                         <div className="flex items-center justify-between bg-black/30 rounded-lg p-2">
@@ -224,7 +242,30 @@ export default function DiscoveryPage() {
                           </div>
                         </div>
                       )}
-                      <div className="flex items-center justify-between bg-black/30 rounded-lg p-2">
+
+                      {/* Agent Score Display */}
+                      {latestDiscovery.cost_score !== undefined && (
+                        <div className="mt-3 pt-3 border-t border-white/10">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-gray-400 text-xs font-semibold">Agent Score (Lower is Better)</span>
+                            <span className={`text-sm font-bold ${latestDiscovery.cost_score < 30 ? 'text-green-400' :
+                              latestDiscovery.cost_score < 70 ? 'text-yellow-400' : 'text-red-400'
+                              }`}>
+                              {Number(latestDiscovery.cost_score).toFixed(1)}
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-700 rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full transition-all duration-500 ${latestDiscovery.cost_score < 30 ? 'bg-green-500' :
+                                latestDiscovery.cost_score < 70 ? 'bg-yellow-500' : 'bg-red-500'
+                                }`}
+                              style={{ width: `${Math.min(100, Math.max(0, latestDiscovery.cost_score))}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between bg-black/30 rounded-lg p-2 mt-2">
                         <span className="text-gray-400 text-xs">Items Found</span>
                         <span className="text-green-400 font-bold">{catalogInfo?.totalItems || 0}</span>
                       </div>
