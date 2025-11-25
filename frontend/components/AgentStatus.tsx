@@ -33,11 +33,11 @@ const AgentStatus: React.FC<AgentStatusProps> = ({ data }) => {
                   <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Regional Node</p>
                 </div>
               </div>
-              <div className={`px-3 py-1 rounded-full text-xs font-bold border ${isHighLoad
-                  ? 'bg-red-500/10 border-red-500/20 text-red-400'
-                  : 'bg-green-500/10 border-green-500/20 text-green-400'
+              <div className={`px-3 py-1.5 rounded-full text-sm font-bold border ${region.average_score < 30 ? 'bg-green-500/10 border-green-500/20 text-green-400' :
+                  region.average_score < 70 ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400' :
+                    'bg-red-500/10 border-red-500/20 text-red-400'
                 }`}>
-                {isHighLoad ? 'HIGH LOAD' : 'OPTIMAL'}
+                Avg Score: {region.average_score !== undefined ? Number(region.average_score).toFixed(1) : 'N/A'}
               </div>
             </div>
 
@@ -71,7 +71,17 @@ const AgentStatus: React.FC<AgentStatusProps> = ({ data }) => {
                         <div className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]"></div>
                         <span className="text-sm font-medium text-gray-200">{opt.agent_name.replace(' Local', '')}</span>
                       </div>
-                      <div className="flex gap-4 text-sm">
+                      <div className="flex gap-4 text-sm items-center">
+                        {opt.cost_score !== undefined && (
+                          <div className="flex flex-col items-end">
+                            <span className="text-xs text-gray-500">Score</span>
+                            <span className={`font-mono font-bold ${opt.cost_score < 30 ? 'text-green-400' :
+                                opt.cost_score < 70 ? 'text-yellow-400' : 'text-red-400'
+                              }`}>
+                              {Number(opt.cost_score).toFixed(1)}
+                            </span>
+                          </div>
+                        )}
                         <div className="flex flex-col items-end">
                           <span className="text-xs text-gray-500">Energy Price</span>
                           <span className="text-green-400 font-mono font-bold">£{opt.energy_price?.toFixed(3)}/kWh</span>

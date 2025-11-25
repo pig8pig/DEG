@@ -34,6 +34,13 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   const toggleSimulation = async () => {
     try {
       if (isRunning) {
@@ -71,6 +78,12 @@ const Dashboard = () => {
             <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-full border border-gray-700">
               <div className={`w-2 h-2 rounded-full ${isRunning ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
               <span className="text-sm font-medium text-gray-300">{isRunning ? 'System Active' : 'System Paused'}</span>
+            </div>
+
+            <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-full border border-gray-700">
+              <span className="text-sm font-mono text-blue-400 font-bold">
+                {currentTime.toLocaleTimeString([], { hour12: false })}
+              </span>
             </div>
 
             <Link
@@ -141,11 +154,11 @@ const Dashboard = () => {
                 {status?.logs?.slice().reverse().map((log: any, i: number) => {
                   const timestamp = typeof log === 'string' ? new Date().toLocaleTimeString() : new Date(log.timestamp).toLocaleTimeString();
                   const message = typeof log === 'string' ? log : log.message;
-                  
+
                   // Extract priority from message if present (e.g., "Priority 3" or "(Priority 5)")
                   const priorityMatch = message.match(/\(Priority (\d)\)|Priority (\d)/);
                   const priority = priorityMatch ? parseInt(priorityMatch[1] || priorityMatch[2]) : null;
-                  
+
                   // Get priority color
                   const getPriorityColor = (p: number) => {
                     switch (p) {
@@ -157,11 +170,11 @@ const Dashboard = () => {
                       default: return 'text-gray-400';
                     }
                   };
-                  
+
                   // Determine if this is a success or failure message
                   const isSuccess = message.includes('✓');
                   const isFailure = message.includes('✗');
-                  
+
                   return (
                     <div key={i} className={`flex gap-3 ${priority ? getPriorityColor(priority) : 'text-gray-400'} hover:text-gray-200 transition-colors border-b border-gray-800/50 pb-1 last:border-0`}>
                       <span className="text-gray-600 select-none">[{timestamp}]</span>
@@ -176,13 +189,13 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
-        
+
         {/* Agent Interaction Section */}
         <div className="mt-8">
           <AgentInteractionHub data={status} />
         </div>
       </main>
-    </div>
+    </div >
   );
 };
 

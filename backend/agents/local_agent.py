@@ -4,6 +4,7 @@ import random
 import uuid
 
 from simulation.data_generator import DataGenerator
+import math
 from beckn_models import (
     ComputeNode, BecknCatalog, BecknProvider, BecknItem, 
     BecknDescriptor, BecknPrice, BecknOrder, OrderState, ComputeJob,
@@ -27,6 +28,35 @@ class LocalAgent:
         "Glasgow": "Glasgow",
         "Leeds": "Leeds",
     }
+
+    # Hard‑coded workload forecast (hour -> weight) – values from user request
+    WORKLOAD_FORECAST = {
+        0: 0.15,
+        1: 0.10,
+        2: 0.08,
+        3: 0.05,
+        4: 0.05,
+        5: 0.07,
+        6: 0.14,
+        7: 0.28,
+        8: 0.45,
+        9: 0.65,
+        10: 0.80,
+        11: 0.90,
+        12: 0.70,
+        13: 0.88,
+        14: 0.98,
+        15: 1.00,
+        16: 0.92,
+        17: 0.75,
+        18: 0.50,
+        19: 0.40,
+        20: 0.30,
+        21: 0.25,
+        22: 0.20,
+        23: 0.18,
+    }
+
     
     def __init__(self, name: str, region: str, generator: DataGenerator, lat: float = 0.0, lon: float = 0.0):
         self.name = name
@@ -116,6 +146,10 @@ class LocalAgent:
         active_power = len(self.current_jobs) * 1.5
         self.node.current_power_draw_kw = self.node.idle_power_kw + active_power
         self.node.is_available = True # Always try to buy more if needed
+
+        # Compute and store cost score for this timestamp
+        self.cost_score = self.compute_cost_score(timestamp)
+
 
     def discover_energy_slots(self) -> Dict:
         """
@@ -427,8 +461,10 @@ class LocalAgent:
             "active_tasks_count": len(self.current_jobs),
             "catalog": self.get_beckn_catalog().dict(),
             "synthesized_summary": synthesis,  # LLM-generated summary
-            "location_data": self.location_data  # Include location data for context
+            "location_data": self.location_data,  # Include location data for context
+            "cost_score": getattr(self, 'cost_score', None),  # Expose computed cost score
         }
+
     
     def get_discovery_data(self):
         """
@@ -445,7 +481,8 @@ class LocalAgent:
                 "agent_name": record["agent_name"],
                 "region": record["region"],
                 "assigned_location": record["assigned_location"],
-                "location_data": record["location_data"]
+                "location_data": record["location_data"],
+                "cost_score": getattr(self, 'cost_score', None)  # Include current cost score
                 # Exclude 'result' and 'discovered_locations' to reduce payload size
             })
         
@@ -457,5 +494,35 @@ class LocalAgent:
             "discovery_history": lightweight_history,
             "assigned_location": self.assigned_location,  # This agent's assigned location
             "location_data": self.location_data,  # Data for assigned location only
-            "job_schedule": list(self.job_schedule.values())  # Scheduled jobs for timeline
+            "job_schedule": list(self.job_schedule.values()),  # Scheduled jobs for timeline
+            "cost_score": getattr(self, 'cost_score', None)  # Expose computed cost score
         }
+
+    def compute_cost_score(self, timestamp: datetime) -> float:
+        """Calculate the cost score for this agent.
+
+        f = a*energy_price + b*carbon + c*workload_forecast
+        a = 10, b = 0.01, c = 2 (as per user request)
+        The raw f is passed through a sigmoid to bound it between 0 and 1.
+        The final score is sigmoid(f) * 100 to normalize from 0 - 100.
+        """
+        # Coefficients
+        a = 5.0
+        b = 0.005
+        c = 1.0
+        d = 1.0
+        
+        # Pull values
+        energy_price = self.energy_data.get('price', 0.0)
+        carbon = self.energy_data.get('carbon_intensity', 0.0)
+        hour = timestamp.hour
+        workload = self.WORKLOAD_FORECAST.get(hour, 0.0)
+        
+        # Linear combination
+        raw_f = a * energy_price + b * carbon + c * workload - d
+        
+        # Sigmoid normalization
+        sigmoid = 1.0 / (1.0 + math.exp(-1.5*raw_f))
+        
+        # Normalize to 0-100
+        return sigmoid * 100.0

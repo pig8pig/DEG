@@ -82,19 +82,25 @@ class RegionalAgent:
             report = agent.get_report()
             energy_data = report.get('energy_data', {})
             
-            # Extract energy price and carbon intensity
+            # Extract energy price, carbon intensity, and cost score
             energy_price = energy_data.get('price', 0.0)
             carbon = energy_data.get('carbon_intensity', 0.0)
+            cost_score = report.get('cost_score', 0.0)
             
             lowest_cost_options.append({
                 "agent_name": agent.name,
                 "energy_price": energy_price,  # Energy price in GBP/kWh
                 "carbon": carbon,
+                "cost_score": cost_score,  # Include the computed score
                 "available": 1 if agent.node.is_available else 0
             })
         
-        # Sort by energy price
-        lowest_cost_options.sort(key=lambda x: x['energy_price'])
+        # Sort by cost_score (lower is better)
+        lowest_cost_options.sort(key=lambda x: x.get('cost_score', 999))
+        
+        # Calculate average score across all local agents
+        total_score = sum(opt.get('cost_score', 0) for opt in lowest_cost_options)
+        average_score = total_score / len(lowest_cost_options) if lowest_cost_options else 0.0
 
         self.aggregated_data = {
             "region": self.region,
@@ -104,7 +110,8 @@ class RegionalAgent:
             "lowest_cost_options": lowest_cost_options[:50],
             "local_agents": [agent.get_report() for agent in self.local_agents],
             "catalog": self.aggregated_catalog.dict(),
-            "agent_summaries": agent_summaries  # Include LLM-synthesized summaries
+            "agent_summaries": agent_summaries,  # Include LLM-synthesized summaries
+            "average_score": average_score  # Include average score
         }
         
         # Synthesize regional ranking
