@@ -94,7 +94,7 @@ Location Data:
 - Available Capacity: {location_data.get('available_capacity', 'N/A')} MW
 
 Energy Data:
-- Price: ${energy_data.get('price', 'N/A')}/kWh
+- Price: £{energy_data.get('price', 'N/A')}/kWh
 - Carbon Intensity: {energy_data.get('carbon_intensity', 'N/A')} gCO2/kWh
 - Renewable Mix: {energy_data.get('renewable_mix', 'N/A')}%
 
@@ -107,75 +107,36 @@ Keep it concise and actionable for the regional agent."""
 
         return self.synthesize(prompt, max_tokens=200, temperature=0.5)
 
-    def decide_job_assignment(self, job_details: Dict, agent_summaries: list, available_options: list, history: list) -> Optional[Dict]:
+    def synthesize_regional_ranking(self, regional_data: Dict[str, Any]) -> Optional[str]:
         """
-        Ask LLM to decide which agent should handle the job based on summaries and quantitative data.
+        Synthesize a regional ranking based on local agent reports.
         
         Args:
-            job_details: Dict with job info (id, priority, etc)
-            agent_summaries: List of text summaries from agents
-            available_options: List of available slots with cost/carbon
-            history: List of recent assignments
+            regional_data: Dictionary containing regional aggregation data
             
         Returns:
-            Dict with 'selected_agent' and 'reasoning' or None
+            Natural language ranking and summary or None if synthesis fails
         """
-        import json
+        region_name = regional_data.get("region", "Unknown")
+        agent_summaries = regional_data.get("agent_summaries", [])
         
-        # Format options for prompt
-        options_text = ""
-        for opt in available_options:
-            options_text += f"- Agent: {opt.get('agent_name')}, Cost: ${opt.get('cost', 0):.3f}, Carbon: {opt.get('carbon', 0):.1f} gCO2/kWh\n"
-            
-        # Format summaries
+        # Format summaries for the prompt
         summaries_text = ""
         for summary in agent_summaries:
-            summaries_text += f"- {summary.get('agent_name')} ({summary.get('location')}): {summary.get('summary')}\n"
+            summaries_text += f"\n- Agent {summary['agent_name']} ({summary['location']}): {summary['summary']}"
             
-        prompt = f"""You are the Global Orchestrator for a Digital Energy Grid.
-Your task is to assign a compute job to the best available agent.
+        # Build prompt
+        prompt = f"""You are a Regional Energy Coordinator for {region_name}.
+Your goal is to analyze reports from local agents and rank them based on the cheapest and cleanest energy available.
 
-JOB DETAILS:
-- Priority: {job_details.get('priority')} (1-5, 5 is highest)
-- Runtime: {job_details.get('runtime')} hours
-- Deadline: {job_details.get('deadline', 'None')}
-
-AVAILABLE AGENTS (Quantitative Data):
-{options_text}
-
-AGENT STATUS REPORTS (Qualitative Data):
+Local Agent Reports:
 {summaries_text}
 
-RECENT ASSIGNMENTS:
-{str(history[-5:]) if history else "None"}
+Based on these reports, please:
+1. Rank the locations from best to worst for compute tasks, prioritizing low carbon intensity and cost.
+2. Provide a brief justification for the top pick.
+3. Summarize the overall energy status of the region.
 
-INSTRUCTIONS:
-1. Analyze the trade-offs between Cost, Carbon, and Agent Status.
-2. For High Priority jobs, favor reliability and speed (check status reports).
-3. For Low Priority jobs, favor low cost and low carbon.
-4. Avoid overloading agents that report being busy or having issues.
-5. Select the best agent name from the Available Agents list.
+Format the output clearly with a numbered list for the ranking."""
 
-RESPONSE FORMAT:
-You must respond with ONLY a valid JSON object in this format:
-{{
-  "selected_agent": "Exact Agent Name",
-  "reasoning": "One sentence explaining why."
-}}
-"""
-        response = self.synthesize(prompt, max_tokens=150, temperature=0.3)
-        if not response:
-            return None
-            
-        try:
-            # Clean response to ensure valid JSON
-            cleaned = response.strip()
-            if cleaned.startswith("```json"):
-                cleaned = cleaned.split("```json")[1].split("```")[0].strip()
-            elif cleaned.startswith("```"):
-                cleaned = cleaned.split("```")[1].split("```")[0].strip()
-                
-            return json.loads(cleaned)
-        except Exception as e:
-            print(f"LLM decision parsing error: {e}")
-            return None
+        return self.synthesize(prompt, max_tokens=400, temperature=0.5)

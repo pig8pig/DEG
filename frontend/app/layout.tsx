@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Digital Energy Grid",
+  title: "COOP",
   description: "Autonomous Multi-Agent Orchestration for Energy-Aware Compute",
 };
 

@@ -1,10 +1,8 @@
 from typing import List, Dict, Optional
 from agents.regional_agent import RegionalAgent
-from typing import List, Dict, Optional
-from agents.regional_agent import RegionalAgent
 from beckn_models import ComputeJob, BecknCatalog, BecknItem, OrderState, BecknOrder
 from beckn_client import BecknClient
-from llm_client import LLMClient
+from datetime import datetime
 
 class GlobalAgent:
     def __init__(self):
@@ -41,49 +39,35 @@ class GlobalAgent:
 
     def optimize_and_assign(self):
         """
-        Main optimization loop. Assigns tasks from queue to regions using full Beckn Protocol lifecycle:
-        1. Discover - Find available grid windows (time slots)
-        2. Select - Choose specific time slot and get quote
-        3. Init - Initialize order with workload details
-        4. Confirm - Finalize reservation for that time slot
+        Main optimization loop. Assigns tasks from queue to regions based on score.
         """
         if not self.task_queue:
             print("DEBUG: Task queue empty, skipping optimization.")
             return
+        
+        print(f"\n[GLOBAL] Processing {len(self.task_queue)} jobs in queue")
 
         jobs_to_requeue = []
 
         # STEP 1: DISCOVER - Find available grid windows across all locations
-        # Check cache first to avoid spamming discovery (valid for 60 seconds)
-        from datetime import datetime, timedelta
-        now = datetime.now()
-        
-        print(f"DEBUG: Starting optimization with {len(self.task_queue)} jobs in queue.")
-        
-        if (self.cached_discovery_result and self.last_discovery_time and 
-            (now - self.last_discovery_time).total_seconds() < 60):
-            discovery_result = self.cached_discovery_result
-            self.log_event("Using cached discovery results.")
-        else:
-            self.log_event("Starting Beckn discovery for available grid windows...")
-            try:
-                discovery_result = self.beckn_client.discover()
-                self.cached_discovery_result = discovery_result
-                self.last_discovery_time = now
-                
-                # Distribute discovery results to all regions
-                for region in self.regional_agents:
-                    # Pass raw discovery data to region to process/filter
-                    region.process_discovery_result(discovery_result)
-                    # Trigger aggregation to update reports with new catalog data
-                    region.aggregate_data()
-                
-                self.log_event(f"Discovery complete. Found grid windows across {len(self.regional_agents)} regions.")
-                            
-            except Exception as e:
-                self.log_event(f"Discovery failed: {e}")
-                # If discovery fails, we can't proceed with job assignment
-                return
+        self.log_event("Starting Beckn discovery for available grid windows...")
+        try:
+            discovery_result = self.beckn_client.discover()
+            
+            # Distribute discovery results to all regions
+            for region in self.regional_agents:
+                # Pass raw discovery data to region to process/filter
+                region.process_discovery_result(discovery_result)
+                # Trigger aggregation to update reports with new catalog data
+                region.aggregate_data()
+            
+            self.log_event(f"Discovery complete. Found grid windows across {len(self.regional_agents)} regions.")
+                        
+        except Exception as e:
+            self.log_event(f"Discovery failed: {e}")
+            print(f"[GLOBAL] Discovery failed: {e}")
+            # If discovery fails, we can't proceed with job assignment
+            return
 
         # Process each job in queue - SORT BY PRIORITY AND DEADLINE
         # Higher priority (5 > 1) and sooner deadlines first
@@ -116,131 +100,50 @@ class GlobalAgent:
                 f"Processing job {job.job_id[:8]} (Priority {job.priority}{time_remaining_str}, runtime: {job.estimated_runtime_hrs}h)"
             )
             
-            # STEP 2: EVALUATE OPTIONS - Review discovered grid windows
-            # Collect available time slots from all regional reports
-            global_options = []
             
+            # STEP 2: SELECT REGION BY SCORE
+            # Find region with lowest average score
+            region_scores = []
             for region in self.regional_agents:
                 report = region.get_report()
-                # Get the pre-calculated lowest cost options from the region
-                # These represent specific time slots at specific locations
-                regional_options = report.get("lowest_cost_options", [])
-                
-                for option in regional_options:
-                    # Add region reference to the option for routing
-                    option_with_context = option.copy()
-                    option_with_context["region_agent"] = region
-                    global_options.append(option_with_context)
+                avg_score = report.get('average_score', float('inf'))
+                region_scores.append({
+                    'region': region,
+                    'average_score': avg_score
+                })
             
-            # Filter for available slots
-            available_options = [opt for opt in global_options if opt.get("available", 0) > 0]
+            # Sort by average score (lowest is best)
+            region_scores.sort(key=lambda x: x['average_score'])
             
-            print(f"DEBUG: Job {job.job_id} - Available options: {len(available_options)}")
-            
-            if not available_options:
-                # Defer task if no time slots available
+            if not region_scores:
                 jobs_to_requeue.append(job)
-                self.log_event(f"Job {job.job_id[:8]} deferred - No available time slots found.")
+                self.log_event(f"Job {job.job_id[:8]} deferred - No regions available.")
                 continue
-
-            # STEP 3: SELECT BEST TIME SLOT
-            # Strategy: Consult LLM first, fallback to deterministic scoring
             
-            # 1. Collect Agent Summaries
-            agent_summaries = []
-            for region in self.regional_agents:
-                report = region.get_report()
-                if "agent_summaries" in report:
-                    agent_summaries.extend(report["agent_summaries"])
-
-            # 2. Prepare Job Details
-            job_details = {
-                "id": job.job_id,
-                "priority": job.priority,
-                "runtime": job.estimated_runtime_hrs,
-                "deadline": job.must_start_by.isoformat() if job.must_start_by else "None"
-            }
+            best_region = region_scores[0]['region']
             
-            # 3. Ask LLM for Decision
-            self.log_event(f"Consulting LLM for job {job.job_id[:8]} assignment...")
-            llm_decision = self.llm_client.decide_job_assignment(
-                job_details, 
-                agent_summaries, 
-                available_options, 
-                self.job_history
-            )
-            
-            best_option = None
-            
-            if llm_decision and "selected_agent" in llm_decision:
-                # Find the option selected by LLM
-                selected_name = llm_decision["selected_agent"]
-                reasoning = llm_decision.get("reasoning", "No reasoning provided.")
-                
-                # Verify the selected agent is actually available
-                matching_options = [opt for opt in available_options if opt.get("agent_name") == selected_name]
-                
-                if matching_options:
-                    best_option = matching_options[0] # Take the first slot for that agent
-                    self.log_event(f"🤖 LLM Selected {selected_name}: \"{reasoning}\"")
-                else:
-                    self.log_event(f"⚠ LLM selected {selected_name} but it's not available. Falling back to scoring.")
-            
-            # 4. Fallback / Deterministic Scoring
-            if not best_option:
-                # Score each option based on cost and carbon impact
-                for opt in available_options:
-                    price = opt.get("cost", float('inf'))
-                    carbon = opt.get("carbon", 0)
-                    # Weighted score: prioritize carbon reduction
-                    opt["score"] = price + (carbon * 0.5)
-                
-                # Sort by score (lowest is best)
-                available_options.sort(key=lambda x: x["score"])
-                best_option = available_options[0]
-                self.log_event("Selected best option based on Cost/Carbon score.")
-            
-            # Update History
-            self.job_history.append({
-                "job_id": job.job_id,
-                "assigned_to": best_option.get("agent_name"),
-                "timestamp": datetime.now().isoformat()
-            })
-            if len(self.job_history) > 10: self.job_history.pop(0)
-            
-            # Log the selected time slot details
             self.log_event(
-                f"Selected time slot for job {job.job_id[:8]} (Priority {job.priority}): "
-                f"Location={best_option.get('agent_name', 'unknown')}, "
-                f"Cost={best_option.get('cost', 0):.3f}, "
-                f"Carbon={best_option.get('carbon', 0):.1f} gCO2/kWh"
+                f"Assigning job {job.job_id[:8]} (Priority {job.priority}) to region {best_region.region} "
+                f"(avg score: {region_scores[0]['average_score']:.1f})"
             )
             
-            # STEP 4: EXECUTE BECKN LIFECYCLE (Select → Init → Confirm)
-            # This reserves the specific time slot at the specific location
-            region = best_option["region_agent"]
-            provider_id = best_option["agent_name"]  # Provider managing this time slot
-            item_id = best_option.get("item_id", "unknown_item")  # Specific time slot ID
-            
+            # STEP 3: ASSIGN TO REGIONAL AGENT
             try:
-                # Execute full Beckn order lifecycle:
-                # - SELECT: Request quote for this specific time slot
-                # - INIT: Initialize order with job details (compute load, time window, etc.)
-                # - CONFIRM: Finalize reservation for this time slot
-                success = region.execute_order_lifecycle(provider_id, item_id, job)
+                success = best_region.assign_job(job)
                 
                 if success:
                     self.log_event(
-                        f"✓ Job {job.job_id[:8]} (Priority {job.priority}) successfully assigned to \"{provider_id}\" in {region.region}"
+                        f"✓ Job {job.job_id[:8]} (Priority {job.priority}) successfully assigned to region {best_region.region}"
                     )
                     job.status = "ASSIGNED"
                     assigned = True
                 else:
                     self.log_event(
-                        f"✗ Job {job.job_id[:8]} (Priority {job.priority}) failed to assign to \"{provider_id}\" - Beckn lifecycle failed"
+                        f"✗ Job {job.job_id[:8]} (Priority {job.priority}) failed to assign to region {best_region.region}"
                     )
             except Exception as e:
-                self.log_event(f"Error during Beckn flow for job {job.job_id[:8]}: {e}")
+                self.log_event(f"Error assigning job {job.job_id[:8]} to region: {e}")
+            
             
             if not assigned:
                 jobs_to_requeue.append(job)

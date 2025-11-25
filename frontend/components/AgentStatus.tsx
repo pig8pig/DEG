@@ -19,7 +19,7 @@ const AgentStatus: React.FC<AgentStatusProps> = ({ data }) => {
       {data.regions.map((region: any, idx: number) => {
         const capacityPercentage = (region.total_used / region.total_capacity) * 100;
         const isHighLoad = capacityPercentage > 80;
-        
+
         return (
           <div key={idx} className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-2xl overflow-hidden hover:border-blue-500/50 transition-colors">
             {/* Region Header */}
@@ -33,15 +33,14 @@ const AgentStatus: React.FC<AgentStatusProps> = ({ data }) => {
                   <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Regional Node</p>
                 </div>
               </div>
-              <div className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                isHighLoad 
-                  ? 'bg-red-500/10 border-red-500/20 text-red-400' 
-                  : 'bg-green-500/10 border-green-500/20 text-green-400'
-              }`}>
-                {isHighLoad ? 'HIGH LOAD' : 'OPTIMAL'}
+              <div className={`px-3 py-1.5 rounded-full text-sm font-bold border ${region.average_score < 30 ? 'bg-green-500/10 border-green-500/20 text-green-400' :
+                region.average_score < 70 ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400' :
+                  'bg-red-500/10 border-red-500/20 text-red-400'
+                }`}>
+                Avg Score: {region.average_score !== undefined ? Number(region.average_score).toFixed(1) : 'N/A'}
               </div>
             </div>
-            
+
             <div className="p-5 space-y-6">
               {/* Capacity Meter */}
               <div>
@@ -54,10 +53,9 @@ const AgentStatus: React.FC<AgentStatusProps> = ({ data }) => {
                   </span>
                 </div>
                 <div className="w-full bg-gray-700/50 rounded-full h-3 overflow-hidden">
-                  <div 
-                    className={`h-full rounded-full transition-all duration-1000 ease-out ${
-                      isHighLoad ? 'bg-gradient-to-r from-red-500 to-orange-500' : 'bg-gradient-to-r from-blue-500 to-cyan-400'
-                    }`}
+                  <div
+                    className={`h-full rounded-full transition-all duration-1000 ease-out ${isHighLoad ? 'bg-gradient-to-r from-red-500 to-orange-500' : 'bg-gradient-to-r from-blue-500 to-cyan-400'
+                      }`}
                     style={{ width: `${capacityPercentage}%` }}
                   ></div>
                 </div>
@@ -73,10 +71,20 @@ const AgentStatus: React.FC<AgentStatusProps> = ({ data }) => {
                         <div className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]"></div>
                         <span className="text-sm font-medium text-gray-200">{opt.agent_name.replace(' Local', '')}</span>
                       </div>
-                      <div className="flex gap-4 text-sm">
+                      <div className="flex gap-4 text-sm items-center">
+                        {opt.cost_score !== undefined && (
+                          <div className="flex flex-col items-end">
+                            <span className="text-xs text-gray-500">Score</span>
+                            <span className={`font-mono font-bold ${opt.cost_score < 30 ? 'text-green-400' :
+                              opt.cost_score < 70 ? 'text-yellow-400' : 'text-red-400'
+                              }`}>
+                              {Number(opt.cost_score).toFixed(1)}
+                            </span>
+                          </div>
+                        )}
                         <div className="flex flex-col items-end">
-                          <span className="text-xs text-gray-500">Price</span>
-                          <span className="text-green-400 font-mono font-bold">${opt.cost}</span>
+                          <span className="text-xs text-gray-500">Energy Price</span>
+                          <span className="text-green-400 font-mono font-bold">£{opt.energy_price?.toFixed(3)}/kWh</span>
                         </div>
                         <div className="flex flex-col items-end w-16">
                           <span className="text-xs text-gray-500">Carbon</span>

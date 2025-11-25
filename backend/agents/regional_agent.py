@@ -5,6 +5,7 @@ from beckn_models import (
     BecknItem, BecknPrice, BecknComputeEnergyWindow, BecknGridParameters,
     BecknTimeWindow
 )
+from llm_client import LLMClient
 
 class RegionalAgent:
     def __init__(self, name: str, region: str):
@@ -13,6 +14,8 @@ class RegionalAgent:
         self.local_agents: List[LocalAgent] = []
         self.aggregated_catalog: Optional[BecknCatalog] = None
         self.aggregated_data = {}
+        self.llm_client = LLMClient()
+        self.regional_ranking = None
 
     def register_local_agent(self, agent: LocalAgent):
         """
@@ -74,28 +77,30 @@ class RegionalAgent:
         combined_providers = all_providers + (self.aggregated_catalog.providers if self.aggregated_catalog else [])
         
         lowest_cost_options = []
-        for provider in combined_providers:
-            for item in provider.items:
-                # Extract price and carbon
-                try:
-                    cost = float(item.price.value)
-                except:
-                    cost = 0.0
-                
-                carbon = 0.0
-                if item.item_attributes and item.item_attributes.grid_parameters:
-                    carbon = item.item_attributes.grid_parameters.carbon_intensity
-                
-                lowest_cost_options.append({
-                    "agent_name": provider.id,
-                    "item_id": item.id,
-                    "cost": cost,
-                    "carbon": carbon,
-                    "available": 1 # Simplified
-                })
+        for agent in self.local_agents:
+            # Get energy data and location data from each agent
+            report = agent.get_report()
+            energy_data = report.get('energy_data', {})
+            
+            # Extract energy price, carbon intensity, and cost score
+            energy_price = energy_data.get('price', 0.0)
+            carbon = energy_data.get('carbon_intensity', 0.0)
+            cost_score = report.get('cost_score', 0.0)
+            
+            lowest_cost_options.append({
+                "agent_name": agent.name,
+                "energy_price": energy_price,  # Energy price in GBP/kWh
+                "carbon": carbon,
+                "cost_score": cost_score,  # Include the computed score
+                "available": 1 if agent.node.is_available else 0
+            })
         
-        # Sort by cost
-        lowest_cost_options.sort(key=lambda x: x['cost'])
+        # Sort by cost_score (lower is better)
+        lowest_cost_options.sort(key=lambda x: x.get('cost_score', 999))
+        
+        # Calculate average score across all local agents
+        total_score = sum(opt.get('cost_score', 0) for opt in lowest_cost_options)
+        average_score = total_score / len(lowest_cost_options) if lowest_cost_options else 0.0
 
         self.aggregated_data = {
             "region": self.region,
@@ -105,11 +110,69 @@ class RegionalAgent:
             "lowest_cost_options": lowest_cost_options[:50],
             "local_agents": [agent.get_report() for agent in self.local_agents],
             "catalog": self.aggregated_catalog.dict(),
-            "agent_summaries": agent_summaries  # Include LLM-synthesized summaries
+            "agent_summaries": agent_summaries,  # Include LLM-synthesized summaries
+            "average_score": average_score  # Include average score
         }
+        
+        # Synthesize regional ranking
+        # We only do this if we have summaries to rank
+        if agent_summaries:
+            ranking = self.llm_client.synthesize_regional_ranking(self.aggregated_data)
+            if ranking:
+                self.regional_ranking = ranking
+                self.aggregated_data["regional_ranking"] = ranking
 
     def get_report(self):
         return self.aggregated_data
+
+    def assign_job(self, job: ComputeJob) -> bool:
+        """
+        Assigns a job to the local agent with the lowest score.
+        
+        Args:
+            job: ComputeJob object to assign
+            
+        Returns:
+            bool: True if assignment successful, False otherwise
+        """
+        print(f"[{self.region}] Regional agent received job {job.job_id[:8]} (Priority {job.priority})")
+        
+        # Get scores from all local agents
+        agent_scores = []
+        excluded_agents = []
+        for agent in self.local_agents:
+            report = agent.get_report()
+            score = report.get('cost_score', float('inf'))
+            available = report.get('available_capacity', 0)
+            
+            # Only consider agents with available capacity
+            if available > 0:
+                agent_scores.append({
+                    'agent': agent,
+                    'score': score,
+                    'available': available
+                })
+            else:
+                excluded_agents.append(f"{agent.name} (full)")
+        
+        if excluded_agents:
+            print(f"[{self.region}] Excluded {len(excluded_agents)} full agents: {', '.join(excluded_agents)}")
+        
+        if not agent_scores:
+            print(f"[{self.region}] No available agents for job {job.job_id[:8]}")
+            return False
+        
+        # Sort by score (lowest is best)
+        agent_scores.sort(key=lambda x: x['score'])
+        best_agent = agent_scores[0]['agent']
+        
+        print(
+            f"[{self.region}] Assigning job {job.job_id[:8]} to {best_agent.name} "
+            f"(score: {agent_scores[0]['score']:.1f}, capacity: {agent_scores[0]['available']})"
+        )
+        
+        # Assign to local agent
+        return best_agent.assign_job(job)
 
     # --- Beckn Protocol Routing ---
 

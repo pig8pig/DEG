@@ -4,6 +4,7 @@ import random
 import uuid
 
 from simulation.data_generator import DataGenerator
+import math
 from beckn_models import (
     ComputeNode, BecknCatalog, BecknProvider, BecknItem, 
     BecknDescriptor, BecknPrice, BecknOrder, OrderState, ComputeJob,
@@ -27,6 +28,35 @@ class LocalAgent:
         "Glasgow": "Glasgow",
         "Leeds": "Leeds",
     }
+
+    # Hard‑coded workload forecast (hour -> weight) – values from user request
+    WORKLOAD_FORECAST = {
+        0: 0.15,
+        1: 0.10,
+        2: 0.08,
+        3: 0.05,
+        4: 0.05,
+        5: 0.07,
+        6: 0.14,
+        7: 0.28,
+        8: 0.45,
+        9: 0.65,
+        10: 0.80,
+        11: 0.90,
+        12: 0.70,
+        13: 0.88,
+        14: 0.98,
+        15: 1.00,
+        16: 0.92,
+        17: 0.75,
+        18: 0.50,
+        19: 0.40,
+        20: 0.30,
+        21: 0.25,
+        22: 0.20,
+        23: 0.18,
+    }
+
     
     def __init__(self, name: str, region: str, generator: DataGenerator, lat: float = 0.0, lon: float = 0.0):
         self.name = name
@@ -67,6 +97,10 @@ class LocalAgent:
         self.energy_data = {}
         self.orders: Dict[str, BecknOrder] = {}
         self.synthesized_summary = None  # Store latest LLM-synthesized summary
+        
+        # Capacity tracking - will be set from location_data
+        self.total_capacity = 0  # Will be set from location_data.available_capacity
+        self.available_capacity = 0  # Dynamic: decreases with active jobs
 
     def update_state(self, timestamp: datetime):
         """
@@ -74,12 +108,33 @@ class LocalAgent:
         """
         self.update_tick += 1
         
-        # Get fresh energy data
+        # Get fresh energy data from DataGenerator (fallback/default)
         self.energy_data = self.generator.get_energy_data(timestamp, self.region)
         
-        # Perform discovery every 5 ticks (~10 seconds in simulation)
-        if self.update_tick % 5 == 0:
+        # Perform discovery on first tick and then every 5 ticks (~10 seconds in simulation)
+        if self.update_tick == 1 or self.update_tick % 5 == 0:
             self.discover_energy_slots()
+        
+        # Use location_data prices if available (from Beckn API or estimation)
+        # This ensures consistency with the Discovery page
+        if self.location_data and 'price' in self.location_data:
+            self.energy_data = {
+                'price': self.location_data.get('price', 0),
+                'carbon_intensity': self.location_data.get('carbon_intensity', 0),
+                'renewable_mix': self.location_data.get('renewable_mix', 0),
+                'timestamp': timestamp.isoformat()
+            }
+            
+            # Set total_capacity from location_data (constant)
+            # Convert MW to compute slots (1 MW = 1 compute slot)
+            if self.total_capacity == 0:  # Only set once
+                grid_capacity_mw = self.location_data.get('available_capacity', 100)
+                self.total_capacity = int(grid_capacity_mw)  # Convert MW to slots
+                self.available_capacity = self.total_capacity
+        
+        # Update available capacity based on active jobs
+        if self.total_capacity > 0:
+            self.available_capacity = self.total_capacity - len(self.current_jobs)
         
         # Simulate tasks finishing
         finished_job_ids = []
@@ -107,6 +162,10 @@ class LocalAgent:
         self.node.current_power_draw_kw = self.node.idle_power_kw + active_power
         self.node.is_available = True # Always try to buy more if needed
 
+        # Compute and store cost score for this timestamp
+        self.cost_score = self.compute_cost_score(timestamp)
+
+
     def discover_energy_slots(self) -> Dict:
         """
         Uses Beckn discover API to search for energy slots and extract UK location data.
@@ -130,6 +189,24 @@ class LocalAgent:
                 
                 if assigned_loc:
                     self.location_data = assigned_loc
+                    
+                    # Try to get price from Beckn offers
+                    beckn_price = self._extract_price_from_offers(result, assigned_loc.get("item_id"))
+                    
+                    # If no Beckn price, estimate using DataGenerator
+                    if beckn_price is not None:
+                        self.location_data["price"] = beckn_price
+                        self.location_data["price_source"] = "beckn_api"
+                    else:
+                        # Estimate price using DataGenerator
+                        estimated_price = self.generator.estimate_price(
+                            timestamp=datetime.now(),
+                            location=self.assigned_location,
+                            carbon_intensity=assigned_loc.get("carbon_intensity"),
+                            renewable_mix=assigned_loc.get("renewable_mix")
+                        )
+                        self.location_data["price"] = estimated_price
+                        self.location_data["price_source"] = "estimated"
             
             # Track discovery with assigned location
             discovery_record = {
@@ -202,6 +279,36 @@ class LocalAgent:
         except Exception as e:
             print(f"Error extracting locations: {e}")
             return []
+    
+    def _extract_price_from_offers(self, result: Dict, item_id: str) -> Optional[float]:
+        """
+        Extract price from Beckn offers for a specific item ID.
+        
+        Args:
+            result: Beckn discovery result
+            item_id: Item ID to find price for
+            
+        Returns:
+            Price in GBP/kWh or None if not found
+        """
+        try:
+            catalogs = result.get("message", {}).get("catalogs", [])
+            
+            for catalog in catalogs:
+                offers = catalog.get("beckn:offers", [])
+                
+                for offer in offers:
+                    offer_items = offer.get("beckn:items", [])
+                    if item_id in offer_items:
+                        price_obj = offer.get("beckn:price", {})
+                        if price_obj and "value" in price_obj:
+                            return float(price_obj["value"])
+            
+            return None
+            
+        except Exception as e:
+            print(f"Error extracting price from offers: {e}")
+            return None
 
     def get_beckn_catalog(self) -> BecknCatalog:
         """
@@ -258,6 +365,64 @@ class LocalAgent:
             descriptor=BecknDescriptor(name=f"Catalog for {self.name}"),
             providers=[provider]
         )
+
+    def assign_job(self, job: ComputeJob) -> bool:
+        """
+        Assigns a job to this local agent and executes Beckn lifecycle.
+        
+        Args:
+            job: ComputeJob object to assign
+            
+        Returns:
+            bool: True if assignment successful, False otherwise
+        """
+        print(f"[{self.name}] Local agent received job {job.job_id[:8]} (Priority {job.priority})")
+        
+        # Check capacity
+        if self.available_capacity <= 0:
+            print(f"[{self.name}] No capacity available for job {job.job_id[:8]}")
+            return False
+        
+        # Execute Beckn lifecycle
+        item_id = f"slot_{self.node.node_id}"
+        provider_id = self.name
+        
+        success = self.execute_order_lifecycle(item_id, provider_id, job)
+        
+        if not success:
+            print(f"[{self.name}] Beckn lifecycle failed for job {job.job_id[:8]}")
+            return False
+        
+        # Add to current jobs
+        self.current_jobs[job.job_id] = job
+        
+        # Update capacity
+        self.available_capacity = self.total_capacity - len(self.current_jobs)
+        
+        # Create job schedule entry
+        start_time = datetime.now()
+        end_time = start_time + timedelta(hours=job.estimated_runtime_hrs)
+        
+        self.job_schedule[job.job_id] = {
+            "job_id": job.job_id,
+            "start_time": start_time.isoformat(),
+            "end_time": end_time.isoformat(),
+            "duration_hrs": job.estimated_runtime_hrs,
+            "priority": job.priority,
+            "status": "RUNNING",
+            "submitted_at": job.submitted_at.isoformat() if job.submitted_at else None,
+            "must_start_by": job.must_start_by.isoformat() if job.must_start_by else None
+        }
+        
+        # Update job status
+        job.status = "RUNNING"
+        
+        print(
+            f"[{self.name}] Job {job.job_id[:8]} is now RUNNING "
+            f"(capacity: {self.available_capacity}/{self.total_capacity})"
+        )
+        
+        return True
 
     # --- Beckn Order Lifecycle ---
 
@@ -369,22 +534,70 @@ class LocalAgent:
             "active_tasks_count": len(self.current_jobs),
             "catalog": self.get_beckn_catalog().dict(),
             "synthesized_summary": synthesis,  # LLM-generated summary
-            "location_data": self.location_data  # Include location data for context
+            "location_data": self.location_data,  # Include location data for context
+            "cost_score": getattr(self, 'cost_score', None),  # Expose computed cost score
         }
+
     
     def get_discovery_data(self):
         """
         Returns discovery data for frontend display.
         Includes assigned location and location-specific data.
         """
+        # Create lightweight version of discovery history without full Beckn responses
+        lightweight_history = []
+        for record in self.discovery_history[-5:]:  # Last 5 discoveries
+            lightweight_history.append({
+                "timestamp": record["timestamp"],
+                "city": record["city"],
+                "query": record["query"],
+                "agent_name": record["agent_name"],
+                "region": record["region"],
+                "assigned_location": record["assigned_location"],
+                "location_data": record["location_data"],
+                "cost_score": getattr(self, 'cost_score', None)  # Include current cost score
+                # Exclude 'result' and 'discovered_locations' to reduce payload size
+            })
+        
         return {
             "agent_name": self.name,
             "region": self.region,
             "discovery_count": self.discovery_count,
             "last_discovery_time": self.last_discovery_time.isoformat() if self.last_discovery_time else None,
-            "discovery_history": self.discovery_history[-5:],  # Last 5 discoveries
-            "discovered_locations": self.discovered_locations,  # All UK locations
+            "discovery_history": lightweight_history,
             "assigned_location": self.assigned_location,  # This agent's assigned location
             "location_data": self.location_data,  # Data for assigned location only
-            "job_schedule": list(self.job_schedule.values())  # Scheduled jobs for timeline
+            "job_schedule": list(self.job_schedule.values()),  # Scheduled jobs for timeline
+            "cost_score": getattr(self, 'cost_score', None),  # Expose computed cost score
+            "available_capacity": self.available_capacity,  # Current available capacity
+            "total_capacity": self.total_capacity  # Total capacity from location data
         }
+
+    def compute_cost_score(self, timestamp: datetime) -> float:
+        """Calculate the cost score for this agent.
+
+        f = a*energy_price + b*carbon + c*workload_forecast
+        a = 10, b = 0.01, c = 2 (as per user request)
+        The raw f is passed through a sigmoid to bound it between 0 and 1.
+        The final score is sigmoid(f) * 100 to normalize from 0 - 100.
+        """
+        # Coefficients
+        a = 5.0
+        b = 0.005
+        c = 2.0
+        d = 1.0
+        
+        # Pull values
+        energy_price = self.energy_data.get('price', 0.0)
+        carbon = self.energy_data.get('carbon_intensity', 0.0)
+        hour = timestamp.hour
+        workload = self.WORKLOAD_FORECAST.get(hour, 0.0)
+        
+        # Linear combination
+        raw_f = a * energy_price + b * carbon + c * workload - 2
+        
+        # Sigmoid normalization
+        sigmoid = 1.0 / (1.0 + math.exp(-1.5*raw_f))
+        
+        # Normalize to 0-100
+        return sigmoid * 100.0
