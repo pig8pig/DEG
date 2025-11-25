@@ -286,6 +286,18 @@ class BecknClient:
     def update(self, transaction_id: str, bpp_id: str, bpp_uri: str, order_id: str, update_type: str, update_details: Dict) -> Dict:
         """Update an order with flexibility actions or acknowledgements"""
         url = f"{self.base_url}/update"
+        
+        # Construct fulfillment payload
+        fulfillment_payload = update_details.get("fulfillment", {})
+        
+        # Auto-wrap flexibilityAction if provided directly
+        if not fulfillment_payload and "beckn:flexibilityAction" in update_details:
+            fulfillment_payload = {
+                "beckn:deliveryAttributes": {
+                    "beckn:flexibilityAction": update_details["beckn:flexibilityAction"]
+                }
+            }
+            
         payload = {
             "context": self._create_context("update", transaction_id=transaction_id, bpp_id=bpp_id, bpp_uri=bpp_uri),
             "message": {
@@ -296,7 +308,7 @@ class BecknClient:
                     "beckn:orderStatus": "IN_PROGRESS",
                     "beckn:seller": bpp_id,
                     "beckn:buyer": self.bap_id,
-                    "beckn:fulfillment": update_details.get("fulfillment", {}),
+                    "beckn:fulfillment": fulfillment_payload,
                     "beckn:orderAttributes": {
                         "@context": "https://raw.githubusercontent.com/beckn/protocol-specifications-new/refs/heads/draft/schema/ComputeEnergy/v1/context.jsonld",
                         "@type": "beckn:ComputeEnergyOrder",

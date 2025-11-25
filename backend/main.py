@@ -31,7 +31,14 @@ app.add_middleware(
 # System State
 global_agent = GlobalAgent()
 data_generator = DataGenerator()
-simulation_running = False
+
+# System State
+global_agent = GlobalAgent()
+data_generator = DataGenerator()
+
+# Simulation time (separate from real time)
+simulation_time = datetime.now()
+simulation_lock = asyncio.Lock()
 
 def setup_system():
     """
@@ -97,27 +104,19 @@ def run_simulation_step(sim_time):
     # 4. Global Optimization
     global_agent.optimize_and_assign()
 
-async def simulation_loop():
+async def safe_run_simulation_step(sim_time):
     """
-    Background task to run the simulation.
+    Thread-safe wrapper for running simulation step.
+    Ensures only one simulation step runs at a time.
     """
-    global simulation_running
-    simulation_running = True
-    sim_time = datetime.now()
-    
-    while simulation_running:
-        # 1. Update Time
-        sim_time += timedelta(minutes=15) # Fast forward
-        
-        # Run blocking simulation logic in a separate thread to avoid blocking API
-        await asyncio.to_thread(run_simulation_step, sim_time)
-        
-        # Sleep for a bit to simulate real-time ticking (e.g. 1 sec = 15 mins)
-        await asyncio.sleep(2)
+    if simulation_lock.locked():
+        print("Simulation step already in progress, skipping...")
+        return
 
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(simulation_loop())
+    async with simulation_lock:
+        await asyncio.to_thread(run_simulation_step, sim_time)
+
+# Remove simulation loop - using manual time stepping instead
 
 @app.get("/")
 async def root():
@@ -127,18 +126,40 @@ async def root():
 async def get_status():
     return global_agent.get_system_status()
 
-@app.post("/control/start")
-async def start_sim():
-    global simulation_running
-    if not simulation_running:
-        asyncio.create_task(simulation_loop())
-    return {"status": "started"}
+@app.post("/control/step_forward")
+async def step_forward():
+    """
+    Advance simulation time by 1 hour and process jobs.
+    """
+    global simulation_time
+    simulation_time += timedelta(hours=1)
+    
+    # Update agent states and process jobs
+    asyncio.create_task(safe_run_simulation_step(simulation_time))
+    
+    return {"simulation_time": simulation_time.isoformat()}
 
-@app.post("/control/stop")
-async def stop_sim():
-    global simulation_running
-    simulation_running = False
-    return {"status": "stopped"}
+@app.post("/control/step_backward")
+async def step_backward():
+    """
+    Go back in simulation time by 1 hour.
+    Note: This doesn't reprocess jobs, just updates agent states.
+    """
+    global simulation_time
+    simulation_time -= timedelta(hours=1)
+    
+    # Update agent states (but don't reprocess old jobs)
+    for region in global_agent.regional_agents:
+        region.update_state(simulation_time)
+    
+    return {"simulation_time": simulation_time.isoformat()}
+
+@app.get("/control/time")
+async def get_simulation_time():
+    """
+    Get current simulation time.
+    """
+    return {"simulation_time": simulation_time.isoformat()}
 
 @app.get("/discovery/status")
 async def get_discovery_status():
@@ -172,6 +193,7 @@ async def get_agent_discovery(agent_name: str):
 async def submit_job(job: dict):
     """
     Submit a new compute job.
+    Jobs are processed immediately upon submission.
     """
     # Ensure job_id exists
     if "job_id" not in job:
@@ -193,6 +215,10 @@ async def submit_job(job: dict):
     compute_job.calculate_deadline()
     
     global_agent.add_task_to_queue(compute_job)
+    
+    # Process jobs in background (fire-and-forget) to avoid blocking API
+    # Use create_task instead of await to return immediately
+    asyncio.create_task(safe_run_simulation_step(simulation_time))
     
     return {
         "status": "submitted", 

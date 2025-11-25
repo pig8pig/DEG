@@ -5,7 +5,7 @@ import axios from 'axios';
 import AgentStatus from './AgentStatus';
 import AgentInteractionHub from './AgentInteractionHub';
 import EnergyChart from './EnergyChart';
-import { Play, Pause, Activity, Terminal, Zap, Globe } from 'lucide-react';
+import { Globe, Activity, ArrowLeft, ChevronLeft, ChevronRight, Clock, Zap, Terminal } from 'lucide-react';
 import Link from 'next/link';
 
 import dynamic from 'next/dynamic';
@@ -17,7 +17,7 @@ const Map = dynamic(() => import('./Map'), {
 
 const Dashboard = () => {
   const [status, setStatus] = useState<any>(null);
-  const [isRunning, setIsRunning] = useState(false);
+  const [simulationTime, setSimulationTime] = useState<string>('');
 
   const fetchData = async () => {
     try {
@@ -30,7 +30,9 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 2000); // Poll every 2 seconds
+    const interval = setInterval(() => {
+      fetchData();
+    }, 2000); // Poll every 2 seconds
     return () => clearInterval(interval);
   }, []);
 
@@ -43,14 +45,30 @@ const Dashboard = () => {
 
   const toggleSimulation = async () => {
     try {
-      if (isRunning) {
-        await axios.post('http://localhost:8000/control/stop');
-      } else {
-        await axios.post('http://localhost:8000/control/start');
-      }
-      setIsRunning(!isRunning);
+      const res = await axios.get('http://localhost:8000/control/time');
+      setSimulationTime(res.data.simulation_time);
     } catch (error) {
-      console.error("Error toggling simulation:", error);
+      console.error("Error fetching simulation time:", error);
+    }
+  };
+
+  const stepForward = async () => {
+    try {
+      const res = await axios.post('http://localhost:8000/control/step_forward');
+      setSimulationTime(res.data.simulation_time);
+      await fetchData(); // Refresh data after time step
+    } catch (error) {
+      console.error("Error stepping forward:", error);
+    }
+  };
+
+  const stepBackward = async () => {
+    try {
+      const res = await axios.post('http://localhost:8000/control/step_backward');
+      setSimulationTime(res.data.simulation_time);
+      await fetchData(); // Refresh data after time step
+    } catch (error) {
+      console.error("Error stepping backward:", error);
     }
   };
 
@@ -79,10 +97,6 @@ const Dashboard = () => {
           </div>
 
           <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-full border border-gray-700">
-              <div className={`w-2 h-2 rounded-full ${isRunning ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-              <span className="text-sm font-medium text-gray-300">{isRunning ? 'System Active' : 'System Paused'}</span>
-            </div>
 
             <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-full border border-gray-700">
               <span className="text-sm font-mono text-blue-400 font-bold">
@@ -97,16 +111,22 @@ const Dashboard = () => {
               Grid Timeline
             </Link>
 
-            <button
-              onClick={toggleSimulation}
-              className={`flex items-center gap-2 px-6 py-2.5 rounded-lg font-bold transition-all transform active:scale-95 ${isRunning
-                ? 'bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/50'
-                : 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/25'
-                }`}
-            >
-              {isRunning ? <Pause size={18} /> : <Play size={18} />}
-              {isRunning ? 'Stop Simulation' : 'Start Simulation'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={stepBackward}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg font-bold transition-all transform active:scale-95 bg-gray-700 hover:bg-gray-600 text-white border border-gray-600"
+              >
+                <ChevronLeft size={18} />
+                -1 Hour
+              </button>
+              <button
+                onClick={stepForward}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg font-bold transition-all transform active:scale-95 bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/25"
+              >
+                +1 Hour
+                <ChevronRight size={18} />
+              </button>
+            </div>
           </div>
         </div>
       </header>

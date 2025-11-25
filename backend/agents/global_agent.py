@@ -3,6 +3,7 @@ from agents.regional_agent import RegionalAgent
 from beckn_models import ComputeJob, BecknCatalog, BecknItem, OrderState, BecknOrder
 from beckn_client import BecknClient
 from datetime import datetime
+from llm_client import LLMClient
 
 class GlobalAgent:
     def __init__(self):
@@ -11,6 +12,10 @@ class GlobalAgent:
         self.all_jobs: Dict[str, ComputeJob] = {} # Track all jobs centrally
         self.logs = []
         self.beckn_client = BecknClient()
+        self.llm_client = LLMClient()
+        self.job_history = [] # Track recent assignments for LLM context
+        self.cached_discovery_result = None
+        self.last_discovery_time = None
 
     def register_regional_agent(self, agent: RegionalAgent):
         self.regional_agents.append(agent)
@@ -38,6 +43,7 @@ class GlobalAgent:
         Main optimization loop. Assigns tasks from queue to regions based on score.
         """
         if not self.task_queue:
+            print("DEBUG: Task queue empty, skipping optimization.")
             return
         
         print(f"\n[GLOBAL] Processing {len(self.task_queue)} jobs in queue")

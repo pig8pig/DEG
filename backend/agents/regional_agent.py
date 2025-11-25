@@ -16,6 +16,8 @@ class RegionalAgent:
         self.aggregated_data = {}
         self.llm_client = LLMClient()
         self.regional_ranking = None
+        self.deferred_jobs: List[ComputeJob] = []  # Queue for deferred jobs
+        self.cost_threshold = 70.0  # Maximum acceptable cost score for immediate execution
 
     def register_local_agent(self, agent: LocalAgent):
         """
@@ -31,6 +33,12 @@ class RegionalAgent:
             agent.update_state(timestamp)
         
         self.aggregate_data()
+        
+        # Check for energy spikes and trigger reassignment if needed
+        self.handle_energy_spikes()
+        
+        # Try to assign deferred jobs when conditions improve
+        self.retry_deferred_jobs()
 
     def aggregate_data(self):
         """
@@ -128,6 +136,8 @@ class RegionalAgent:
     def assign_job(self, job: ComputeJob) -> bool:
         """
         Assigns a job to the local agent with the lowest score.
+        If the best agent is full or fails, tries alternative agents.
+        If all available agents have cost scores above the threshold, defers the job.
         
         Args:
             job: ComputeJob object to assign
@@ -164,15 +174,56 @@ class RegionalAgent:
         
         # Sort by score (lowest is best)
         agent_scores.sort(key=lambda x: x['score'])
-        best_agent = agent_scores[0]['agent']
         
-        print(
-            f"[{self.region}] Assigning job {job.job_id[:8]} to {best_agent.name} "
-            f"(score: {agent_scores[0]['score']:.1f}, capacity: {agent_scores[0]['available']})"
-        )
+        # Check if the best available agent's score is above threshold
+        best_score = agent_scores[0]['score']
+        if best_score > self.cost_threshold:
+            print(
+                f"[{self.region}] Best available cost score ({best_score:.1f}) exceeds threshold ({self.cost_threshold:.1f}). "
+                f"Deferring job {job.job_id[:8]} to a later time."
+            )
+            self.deferred_jobs.append(job)
+            return False
         
-        # Assign to local agent
-        return best_agent.assign_job(job)
+        # Try to assign to agents in order of best score
+        for i, agent_info in enumerate(agent_scores):
+            agent = agent_info['agent']
+            score = agent_info['score']
+            
+            # Stop trying if we've exceeded the threshold
+            if score > self.cost_threshold:
+                print(
+                    f"[{self.region}] Remaining agents exceed cost threshold ({self.cost_threshold:.1f}). "
+                    f"Deferring job {job.job_id[:8]} to a later time."
+                )
+                self.deferred_jobs.append(job)
+                return False
+            
+            if i == 0:
+                print(
+                    f"[{self.region}] Assigning job {job.job_id[:8]} to {agent.name} "
+                    f"(score: {score:.1f}, capacity: {agent_info['available']})"
+                )
+            else:
+                print(
+                    f"[{self.region}] Trying fallback agent {agent.name} for job {job.job_id[:8]} "
+                    f"(score: {score:.1f}, capacity: {agent_info['available']})"
+                )
+            
+            # Try to assign to this agent
+            success = agent.assign_job(job)
+            
+            if success:
+                if i > 0:
+                    print(f"[{self.region}] Successfully assigned job {job.job_id[:8]} to fallback agent {agent.name}")
+                return True
+            else:
+                # Assignment failed (agent might have become full between report and assignment)
+                print(f"[{self.region}] Assignment to {agent.name} failed, trying next agent...")
+        
+        # All agents failed
+        print(f"[{self.region}] Failed to assign job {job.job_id[:8]} to any agent")
+        return False
 
     # --- Beckn Protocol Routing ---
 
@@ -299,3 +350,127 @@ class RegionalAgent:
         if agent:
             return agent.handle_beckn_confirm(order_id)
         return None
+
+    def update_beckn_order(self, order: BecknOrder):
+        """
+        Routes Update to the appropriate local agent.
+        """
+        agent = next((a for a in self.local_agents if a.name == order.provider_id), None)
+        if agent:
+            return agent.update_beckn_order(order)
+        return None
+
+    def handle_energy_spikes(self):
+        """
+        Checks all local agents for energy price spikes and triggers reassignment if needed.
+        """
+        for agent in self.local_agents:
+            if agent.check_for_price_spike():
+                # Only reassign if agent has active jobs
+                if len(agent.current_jobs) > 0:
+                    print(f"[{self.region}] Initiating job reassignment for {agent.name} due to price spike.")
+                    self.reassign_jobs_from_agent(agent)
+
+    def retry_deferred_jobs(self):
+        """
+        Attempts to assign deferred jobs when cost conditions improve.
+        Called during update_state to periodically retry deferred jobs.
+        """
+        if not self.deferred_jobs:
+            return
+        
+        print(f"[{self.region}] Retrying {len(self.deferred_jobs)} deferred jobs...")
+        
+        # Create a copy to iterate safely while modifying
+        jobs_to_retry = self.deferred_jobs[:]
+        
+        for job in jobs_to_retry:
+            # Try to assign the job
+            # Temporarily remove from deferred list to avoid re-deferring in the same call
+            self.deferred_jobs.remove(job)
+            
+            success = self.assign_job(job)
+            
+            if success:
+                print(f"[{self.region}] Successfully assigned previously deferred job {job.job_id[:8]}")
+            else:
+                # If it fails but wasn't re-deferred (e.g., no capacity), add it back
+                if job not in self.deferred_jobs:
+                    print(f"[{self.region}] Job {job.job_id[:8]} remains deferred (no suitable agent available)")
+                    self.deferred_jobs.append(job)
+    
+    def reassign_jobs_from_agent(self, source_agent: LocalAgent):
+        """
+        Reassigns all jobs from a source agent to the best available alternative.
+        Uses Beckn Status API to verify job status before moving.
+        """
+        # Find best target agent (lowest score, available capacity, not source)
+        candidates = [
+            a for a in self.local_agents 
+            if a.name != source_agent.name and a.available_capacity > 0
+        ]
+        
+        if not candidates:
+            print(f"[{self.region}] No candidates available for reassignment from {source_agent.name}")
+            return
+
+        # Sort by cost score
+        candidates.sort(key=lambda a: a.cost_score if hasattr(a, 'cost_score') else 999)
+        target_agent = candidates[0]
+        
+        print(f"[{self.region}] Selected target agent {target_agent.name} (Score: {getattr(target_agent, 'cost_score', 'N/A')})")
+        
+        # Move jobs
+        # Create a copy of items to iterate safely while modifying
+        jobs_to_move = list(source_agent.current_jobs.values())
+        
+        import uuid
+        
+        for job in jobs_to_move:
+            print(f"[{self.region}] Checking status for job {job.job_id[:8]} on {source_agent.name}")
+            
+            # 0. Check Status via Beckn
+            can_move = True
+            if job.job_id in source_agent.active_external_orders:
+                order_id = source_agent.active_external_orders[job.job_id]
+                transaction_id = str(uuid.uuid4())
+                bpp_id = source_agent.name
+                bpp_uri = f"https://{source_agent.name}/bpp"
+                
+                status_res = source_agent.beckn_client.status(transaction_id, bpp_id, bpp_uri, order_id)
+                
+                if 'message' in status_res and 'order' in status_res['message']:
+                    status = status_res['message']['order'].get('beckn:orderStatus')
+                    print(f"[{self.region}] Job {job.job_id[:8]} status: {status}")
+                    
+                    # Only move if active/confirmed/in-progress
+                    if status not in ["CONFIRMED", "IN_PROGRESS", "ACCEPTED", "PENDING"]:
+                        print(f"[{self.region}] Job {job.job_id[:8]} is {status}, skipping reassignment.")
+                        can_move = False
+                else:
+                    print(f"[{self.region}] Failed to get status for job {job.job_id[:8]}, proceeding with caution.")
+            
+            if not can_move:
+                continue
+
+            print(f"[{self.region}] Moving job {job.job_id[:8]} from {source_agent.name} to {target_agent.name}")
+            
+            # 1. Send Beckn Update (Workload Shift) to source
+            shift_success = source_agent.trigger_workload_shift(job.job_id, target_agent.name)
+            if not shift_success:
+                print(f"[{self.region}] Failed to send workload shift update for job {job.job_id[:8]}")
+                continue
+                
+            # 2. Assign to target agent (triggers Select/Init/Confirm)
+            assign_success = target_agent.assign_job(job)
+            
+            if assign_success:
+                # 3. Remove from source agent
+                if job.job_id in source_agent.current_jobs:
+                    del source_agent.current_jobs[job.job_id]
+                    # Update source capacity
+                    source_agent.available_capacity = source_agent.total_capacity - len(source_agent.current_jobs)
+                    
+                print(f"[{self.region}] Successfully reassigned job {job.job_id[:8]}")
+            else:
+                print(f"[{self.region}] Failed to assign job {job.job_id[:8]} to target {target_agent.name}")
