@@ -66,12 +66,36 @@ class GlobalAgent:
             # If discovery fails, we can't proceed with job assignment
             return
 
-        # Process each job in queue
+        # Process each job in queue - SORT BY PRIORITY AND DEADLINE
+        # Higher priority (5 > 1) and sooner deadlines first
+        self.task_queue.sort(key=lambda j: (
+            -j.priority,  # Negative for descending (higher priority first)
+            j.must_start_by if j.must_start_by else datetime.max  # Earlier deadlines first
+        ))
+
         while self.task_queue:
             job = self.task_queue.pop(0)
             assigned = False
             
-            self.log_event(f"Processing job {job.job_id[:8]}... (runtime: {job.estimated_runtime_hrs}h, priority: {job.priority})")
+            # Check if deadline has passed
+            now = datetime.now()
+            if job.must_start_by and now > job.must_start_by:
+                self.log_event(
+                    f"⚠ Job {job.job_id[:8]} (Priority {job.priority}) MISSED DEADLINE - "
+                    f"was due {job.must_start_by.strftime('%H:%M:%S')}, now {now.strftime('%H:%M:%S')}"
+                )
+                job.status = "FAILED"
+                continue
+            
+            # Calculate time remaining until deadline
+            time_remaining_str = ""
+            if job.must_start_by:
+                time_remaining = (job.must_start_by - now).total_seconds() / 3600  # hours
+                time_remaining_str = f", {time_remaining:.1f}h until deadline"
+            
+            self.log_event(
+                f"Processing job {job.job_id[:8]} (Priority {job.priority}{time_remaining_str}, runtime: {job.estimated_runtime_hrs}h)"
+            )
             
             # STEP 2: EVALUATE OPTIONS - Review discovered grid windows
             # Collect available time slots from all regional reports
@@ -114,7 +138,7 @@ class GlobalAgent:
             
             # Log the selected time slot details
             self.log_event(
-                f"Selected time slot for job {job.job_id[:8]}: "
+                f"Selected time slot for job {job.job_id[:8]} (Priority {job.priority}): "
                 f"Location={best_option.get('agent_name', 'unknown')}, "
                 f"Cost={best_option.get('cost', 0):.3f}, "
                 f"Carbon={best_option.get('carbon', 0):.1f} gCO2/kWh"

@@ -191,6 +191,11 @@ const GridTimeline: React.FC<GridTimelineProps> = ({ data }) => {
                               {(period as any).duration_hrs && (
                                 <div className="text-gray-400">Duration: {(period as any).duration_hrs}h</div>
                               )}
+                              {(period as any).must_start_by && (
+                                <div className="text-yellow-400 text-[10px]">
+                                  Deadline: {new Date((period as any).must_start_by).toLocaleString()}
+                                </div>
+                              )}
                               {(period as any).status && (
                                 <div className="text-gray-400">Status: {(period as any).status}</div>
                               )}

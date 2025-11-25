@@ -368,14 +368,19 @@ class LocalAgent:
                     self.active_external_orders[job.job_id] = confirmed_order.get('beckn:id')
                     
                     # Record job schedule for timeline visualization
-                    start_time = job.start_time_earliest or datetime.now()
+                    # Use actual current time as start time (job starts now when assigned)
+                    start_time = datetime.now()
+                    end_time = start_time + timedelta(hours=job.estimated_runtime_hrs)
+                    
                     self.job_schedule[job.job_id] = {
                         "job_id": job.job_id,
                         "start_time": start_time.isoformat(),
                         "duration_hrs": job.estimated_runtime_hrs,
-                        "end_time": (start_time + timedelta(hours=job.estimated_runtime_hrs)).isoformat(),
+                        "end_time": end_time.isoformat(),
                         "priority": job.priority,
-                        "status": "SCHEDULED"
+                        "status": "SCHEDULED",
+                        "submitted_at": job.submitted_at.isoformat() if job.submitted_at else None,
+                        "must_start_by": job.must_start_by.isoformat() if job.must_start_by else None
                     }
                     
                     return True

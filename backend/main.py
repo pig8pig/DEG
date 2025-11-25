@@ -182,9 +182,25 @@ async def submit_job(job: dict):
     if "num_computations" not in job: job["num_computations"] = 100.0
     if "estimated_runtime_hrs" not in job: job["estimated_runtime_hrs"] = 1.0
     if "status" not in job: job["status"] = "PENDING"
+    if "priority" not in job: job["priority"] = 1
     
-    global_agent.add_task_to_queue(job)
-    return {"status": "submitted", "job_id": job["job_id"]}
+    # Set submission time
+    job["submitted_at"] = datetime.now()
+    
+    # Create ComputeJob and calculate deadline
+    from beckn_models import ComputeJob
+    compute_job = ComputeJob(**job)
+    compute_job.calculate_deadline()
+    
+    global_agent.add_task_to_queue(compute_job)
+    
+    return {
+        "status": "submitted", 
+        "job_id": job["job_id"],
+        "priority": compute_job.priority,
+        "submitted_at": compute_job.submitted_at.isoformat(),
+        "must_start_by": compute_job.must_start_by.isoformat() if compute_job.must_start_by else None
+    }
 
 @app.get("/jobs")
 async def get_jobs():
