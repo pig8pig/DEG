@@ -97,6 +97,10 @@ class LocalAgent:
         self.energy_data = {}
         self.orders: Dict[str, BecknOrder] = {}
         self.synthesized_summary = None  # Store latest LLM-synthesized summary
+        
+        # Capacity tracking - will be set from location_data
+        self.total_capacity = 0  # Will be set from location_data.available_capacity
+        self.available_capacity = 0  # Dynamic: decreases with active jobs
 
     def update_state(self, timestamp: datetime):
         """
@@ -120,6 +124,17 @@ class LocalAgent:
                 'renewable_mix': self.location_data.get('renewable_mix', 0),
                 'timestamp': timestamp.isoformat()
             }
+            
+            # Set total_capacity from location_data (constant)
+            # Convert MW to compute slots (1 MW = 1 compute slot)
+            if self.total_capacity == 0:  # Only set once
+                grid_capacity_mw = self.location_data.get('available_capacity', 100)
+                self.total_capacity = int(grid_capacity_mw)  # Convert MW to slots
+                self.available_capacity = self.total_capacity
+        
+        # Update available capacity based on active jobs
+        if self.total_capacity > 0:
+            self.available_capacity = self.total_capacity - len(self.current_jobs)
         
         # Simulate tasks finishing
         finished_job_ids = []
@@ -351,6 +366,64 @@ class LocalAgent:
             providers=[provider]
         )
 
+    def assign_job(self, job: ComputeJob) -> bool:
+        """
+        Assigns a job to this local agent and executes Beckn lifecycle.
+        
+        Args:
+            job: ComputeJob object to assign
+            
+        Returns:
+            bool: True if assignment successful, False otherwise
+        """
+        print(f"[{self.name}] Local agent received job {job.job_id[:8]} (Priority {job.priority})")
+        
+        # Check capacity
+        if self.available_capacity <= 0:
+            print(f"[{self.name}] No capacity available for job {job.job_id[:8]}")
+            return False
+        
+        # Execute Beckn lifecycle
+        item_id = f"slot_{self.node.node_id}"
+        provider_id = self.name
+        
+        success = self.execute_order_lifecycle(item_id, provider_id, job)
+        
+        if not success:
+            print(f"[{self.name}] Beckn lifecycle failed for job {job.job_id[:8]}")
+            return False
+        
+        # Add to current jobs
+        self.current_jobs[job.job_id] = job
+        
+        # Update capacity
+        self.available_capacity = self.total_capacity - len(self.current_jobs)
+        
+        # Create job schedule entry
+        start_time = datetime.now()
+        end_time = start_time + timedelta(hours=job.estimated_runtime_hrs)
+        
+        self.job_schedule[job.job_id] = {
+            "job_id": job.job_id,
+            "start_time": start_time.isoformat(),
+            "end_time": end_time.isoformat(),
+            "duration_hrs": job.estimated_runtime_hrs,
+            "priority": job.priority,
+            "status": "RUNNING",
+            "submitted_at": job.submitted_at.isoformat() if job.submitted_at else None,
+            "must_start_by": job.must_start_by.isoformat() if job.must_start_by else None
+        }
+        
+        # Update job status
+        job.status = "RUNNING"
+        
+        print(
+            f"[{self.name}] Job {job.job_id[:8]} is now RUNNING "
+            f"(capacity: {self.available_capacity}/{self.total_capacity})"
+        )
+        
+        return True
+
     # --- Beckn Order Lifecycle ---
 
     def execute_order_lifecycle(self, item_id: str, provider_id: str, job: ComputeJob) -> bool:
@@ -495,7 +568,9 @@ class LocalAgent:
             "assigned_location": self.assigned_location,  # This agent's assigned location
             "location_data": self.location_data,  # Data for assigned location only
             "job_schedule": list(self.job_schedule.values()),  # Scheduled jobs for timeline
-            "cost_score": getattr(self, 'cost_score', None)  # Expose computed cost score
+            "cost_score": getattr(self, 'cost_score', None),  # Expose computed cost score
+            "available_capacity": self.available_capacity,  # Current available capacity
+            "total_capacity": self.total_capacity  # Total capacity from location data
         }
 
     def compute_cost_score(self, timestamp: datetime) -> float:
@@ -509,7 +584,7 @@ class LocalAgent:
         # Coefficients
         a = 5.0
         b = 0.005
-        c = 1.0
+        c = 2.0
         d = 1.0
         
         # Pull values
@@ -519,7 +594,7 @@ class LocalAgent:
         workload = self.WORKLOAD_FORECAST.get(hour, 0.0)
         
         # Linear combination
-        raw_f = a * energy_price + b * carbon + c * workload - d
+        raw_f = a * energy_price + b * carbon + c * workload - 2
         
         # Sigmoid normalization
         sigmoid = 1.0 / (1.0 + math.exp(-1.5*raw_f))

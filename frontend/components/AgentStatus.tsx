@@ -34,8 +34,8 @@ const AgentStatus: React.FC<AgentStatusProps> = ({ data }) => {
                 </div>
               </div>
               <div className={`px-3 py-1.5 rounded-full text-sm font-bold border ${region.average_score < 30 ? 'bg-green-500/10 border-green-500/20 text-green-400' :
-                  region.average_score < 70 ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400' :
-                    'bg-red-500/10 border-red-500/20 text-red-400'
+                region.average_score < 70 ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400' :
+                  'bg-red-500/10 border-red-500/20 text-red-400'
                 }`}>
                 Avg Score: {region.average_score !== undefined ? Number(region.average_score).toFixed(1) : 'N/A'}
               </div>
@@ -76,7 +76,7 @@ const AgentStatus: React.FC<AgentStatusProps> = ({ data }) => {
                           <div className="flex flex-col items-end">
                             <span className="text-xs text-gray-500">Score</span>
                             <span className={`font-mono font-bold ${opt.cost_score < 30 ? 'text-green-400' :
-                                opt.cost_score < 70 ? 'text-yellow-400' : 'text-red-400'
+                              opt.cost_score < 70 ? 'text-yellow-400' : 'text-red-400'
                               }`}>
                               {Number(opt.cost_score).toFixed(1)}
                             </span>

@@ -13,6 +13,8 @@ interface DiscoveryRecord {
   assigned_location?: string;  // Agent's assigned UK location
   location_data?: any;  // Location-specific data for assigned location
   cost_score?: number; // Calculated score based on price, carbon, and load
+  available_capacity?: number;  // Current available capacity
+  total_capacity?: number;  // Total capacity
 }
 
 interface AgentDiscoveryData {
@@ -21,6 +23,8 @@ interface AgentDiscoveryData {
   discovery_count: number;
   last_discovery_time: string | null;
   discovery_history: DiscoveryRecord[];
+  available_capacity?: number;  // Current available capacity
+  total_capacity?: number;  // Total capacity
 }
 
 interface DiscoveryStatus {
@@ -155,7 +159,7 @@ export default function DiscoveryPage() {
               {/* Score badge top right */}
               {latestDiscovery && latestDiscovery.cost_score !== undefined && (
                 <div className={`absolute top-3 right-3 px-3 py-1.5 rounded-lg font-bold text-sm shadow-lg ${latestDiscovery.cost_score < 30 ? 'bg-green-500 text-white' :
-                    latestDiscovery.cost_score < 70 ? 'bg-yellow-500 text-gray-900' : 'bg-red-500 text-white'
+                  latestDiscovery.cost_score < 70 ? 'bg-yellow-500 text-gray-900' : 'bg-red-500 text-white'
                   }`}>
                   {Number(latestDiscovery.cost_score).toFixed(1)}
                 </div>
@@ -214,7 +218,11 @@ export default function DiscoveryPage() {
                       </div>
                       <div className="flex items-center justify-between bg-black/30 rounded-lg p-2">
                         <span className="text-gray-400 text-xs">Available Capacity</span>
-                        <span className="text-blue-400 font-bold">{locationData.available_capacity} MW</span>
+                        <span className="text-blue-400 font-bold">
+                          {agent.available_capacity !== undefined && agent.total_capacity !== undefined
+                            ? `${agent.available_capacity} / ${agent.total_capacity} slots`
+                            : 'N/A'}
+                        </span>
                       </div>
                       {locationData.price && (
                         <div className="flex items-center justify-between bg-black/30 rounded-lg p-2">

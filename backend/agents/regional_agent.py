@@ -125,6 +125,55 @@ class RegionalAgent:
     def get_report(self):
         return self.aggregated_data
 
+    def assign_job(self, job: ComputeJob) -> bool:
+        """
+        Assigns a job to the local agent with the lowest score.
+        
+        Args:
+            job: ComputeJob object to assign
+            
+        Returns:
+            bool: True if assignment successful, False otherwise
+        """
+        print(f"[{self.region}] Regional agent received job {job.job_id[:8]} (Priority {job.priority})")
+        
+        # Get scores from all local agents
+        agent_scores = []
+        excluded_agents = []
+        for agent in self.local_agents:
+            report = agent.get_report()
+            score = report.get('cost_score', float('inf'))
+            available = report.get('available_capacity', 0)
+            
+            # Only consider agents with available capacity
+            if available > 0:
+                agent_scores.append({
+                    'agent': agent,
+                    'score': score,
+                    'available': available
+                })
+            else:
+                excluded_agents.append(f"{agent.name} (full)")
+        
+        if excluded_agents:
+            print(f"[{self.region}] Excluded {len(excluded_agents)} full agents: {', '.join(excluded_agents)}")
+        
+        if not agent_scores:
+            print(f"[{self.region}] No available agents for job {job.job_id[:8]}")
+            return False
+        
+        # Sort by score (lowest is best)
+        agent_scores.sort(key=lambda x: x['score'])
+        best_agent = agent_scores[0]['agent']
+        
+        print(
+            f"[{self.region}] Assigning job {job.job_id[:8]} to {best_agent.name} "
+            f"(score: {agent_scores[0]['score']:.1f}, capacity: {agent_scores[0]['available']})"
+        )
+        
+        # Assign to local agent
+        return best_agent.assign_job(job)
+
     # --- Beckn Protocol Routing ---
 
     def process_discovery_result(self, discovery_data: Dict):
