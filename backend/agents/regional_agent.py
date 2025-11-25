@@ -77,28 +77,24 @@ class RegionalAgent:
         combined_providers = all_providers + (self.aggregated_catalog.providers if self.aggregated_catalog else [])
         
         lowest_cost_options = []
-        for provider in combined_providers:
-            for item in provider.items:
-                # Extract price and carbon
-                try:
-                    cost = float(item.price.value)
-                except:
-                    cost = 0.0
-                
-                carbon = 0.0
-                if item.item_attributes and item.item_attributes.grid_parameters:
-                    carbon = item.item_attributes.grid_parameters.carbon_intensity
-                
-                lowest_cost_options.append({
-                    "agent_name": provider.id,
-                    "item_id": item.id,
-                    "cost": cost,
-                    "carbon": carbon,
-                    "available": 1 # Simplified
-                })
+        for agent in self.local_agents:
+            # Get energy data and location data from each agent
+            report = agent.get_report()
+            energy_data = report.get('energy_data', {})
+            
+            # Extract energy price and carbon intensity
+            energy_price = energy_data.get('price', 0.0)
+            carbon = energy_data.get('carbon_intensity', 0.0)
+            
+            lowest_cost_options.append({
+                "agent_name": agent.name,
+                "energy_price": energy_price,  # Energy price in GBP/kWh
+                "carbon": carbon,
+                "available": 1 if agent.node.is_available else 0
+            })
         
-        # Sort by cost
-        lowest_cost_options.sort(key=lambda x: x['cost'])
+        # Sort by energy price
+        lowest_cost_options.sort(key=lambda x: x['energy_price'])
 
         self.aggregated_data = {
             "region": self.region,

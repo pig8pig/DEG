@@ -154,8 +154,9 @@ export default function DiscoveryPage() {
               {/* Agent Header */}
               <div className="mb-4">
                 <h2 className="text-xl font-bold text-white mb-1">{agent.agent_name}</h2>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-1">
                   <span className="text-purple-300 text-sm">📍 {assignedLocation}</span>
+                  <span className="text-blue-300 text-xs">🌐 Region: {agent.region}</span>
                 </div>
               </div>
 

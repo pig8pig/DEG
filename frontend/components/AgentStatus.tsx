@@ -19,7 +19,7 @@ const AgentStatus: React.FC<AgentStatusProps> = ({ data }) => {
       {data.regions.map((region: any, idx: number) => {
         const capacityPercentage = (region.total_used / region.total_capacity) * 100;
         const isHighLoad = capacityPercentage > 80;
-        
+
         return (
           <div key={idx} className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-2xl overflow-hidden hover:border-blue-500/50 transition-colors">
             {/* Region Header */}
@@ -33,15 +33,14 @@ const AgentStatus: React.FC<AgentStatusProps> = ({ data }) => {
                   <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">Regional Node</p>
                 </div>
               </div>
-              <div className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                isHighLoad 
-                  ? 'bg-red-500/10 border-red-500/20 text-red-400' 
+              <div className={`px-3 py-1 rounded-full text-xs font-bold border ${isHighLoad
+                  ? 'bg-red-500/10 border-red-500/20 text-red-400'
                   : 'bg-green-500/10 border-green-500/20 text-green-400'
-              }`}>
+                }`}>
                 {isHighLoad ? 'HIGH LOAD' : 'OPTIMAL'}
               </div>
             </div>
-            
+
             <div className="p-5 space-y-6">
               {/* Capacity Meter */}
               <div>
@@ -54,10 +53,9 @@ const AgentStatus: React.FC<AgentStatusProps> = ({ data }) => {
                   </span>
                 </div>
                 <div className="w-full bg-gray-700/50 rounded-full h-3 overflow-hidden">
-                  <div 
-                    className={`h-full rounded-full transition-all duration-1000 ease-out ${
-                      isHighLoad ? 'bg-gradient-to-r from-red-500 to-orange-500' : 'bg-gradient-to-r from-blue-500 to-cyan-400'
-                    }`}
+                  <div
+                    className={`h-full rounded-full transition-all duration-1000 ease-out ${isHighLoad ? 'bg-gradient-to-r from-red-500 to-orange-500' : 'bg-gradient-to-r from-blue-500 to-cyan-400'
+                      }`}
                     style={{ width: `${capacityPercentage}%` }}
                   ></div>
                 </div>
@@ -75,8 +73,8 @@ const AgentStatus: React.FC<AgentStatusProps> = ({ data }) => {
                       </div>
                       <div className="flex gap-4 text-sm">
                         <div className="flex flex-col items-end">
-                          <span className="text-xs text-gray-500">Price</span>
-                          <span className="text-green-400 font-mono font-bold">${opt.cost}</span>
+                          <span className="text-xs text-gray-500">Energy Price</span>
+                          <span className="text-green-400 font-mono font-bold">£{opt.energy_price?.toFixed(3)}/kWh</span>
                         </div>
                         <div className="flex flex-col items-end w-16">
                           <span className="text-xs text-gray-500">Carbon</span>
