@@ -5,6 +5,7 @@ from beckn_models import (
     BecknItem, BecknPrice, BecknComputeEnergyWindow, BecknGridParameters,
     BecknTimeWindow
 )
+from llm_client import LLMClient
 
 class RegionalAgent:
     def __init__(self, name: str, region: str):
@@ -13,6 +14,8 @@ class RegionalAgent:
         self.local_agents: List[LocalAgent] = []
         self.aggregated_catalog: Optional[BecknCatalog] = None
         self.aggregated_data = {}
+        self.llm_client = LLMClient()
+        self.regional_ranking = None
 
     def register_local_agent(self, agent: LocalAgent):
         """
@@ -107,6 +110,14 @@ class RegionalAgent:
             "catalog": self.aggregated_catalog.dict(),
             "agent_summaries": agent_summaries  # Include LLM-synthesized summaries
         }
+        
+        # Synthesize regional ranking
+        # We only do this if we have summaries to rank
+        if agent_summaries:
+            ranking = self.llm_client.synthesize_regional_ranking(self.aggregated_data)
+            if ranking:
+                self.regional_ranking = ranking
+                self.aggregated_data["regional_ranking"] = ranking
 
     def get_report(self):
         return self.aggregated_data

@@ -77,8 +77,8 @@ class LocalAgent:
         # Get fresh energy data
         self.energy_data = self.generator.get_energy_data(timestamp, self.region)
         
-        # Perform discovery every 5 ticks (~10 seconds in simulation)
-        if self.update_tick % 5 == 0:
+        # Perform discovery on first tick and then every 5 ticks (~10 seconds in simulation)
+        if self.update_tick == 1 or self.update_tick % 5 == 0:
             self.discover_energy_slots()
         
         # Simulate tasks finishing
@@ -130,6 +130,24 @@ class LocalAgent:
                 
                 if assigned_loc:
                     self.location_data = assigned_loc
+                    
+                    # Try to get price from Beckn offers
+                    beckn_price = self._extract_price_from_offers(result, assigned_loc.get("item_id"))
+                    
+                    # If no Beckn price, estimate using DataGenerator
+                    if beckn_price is not None:
+                        self.location_data["price"] = beckn_price
+                        self.location_data["price_source"] = "beckn_api"
+                    else:
+                        # Estimate price using DataGenerator
+                        estimated_price = self.generator.estimate_price(
+                            timestamp=datetime.now(),
+                            location=self.assigned_location,
+                            carbon_intensity=assigned_loc.get("carbon_intensity"),
+                            renewable_mix=assigned_loc.get("renewable_mix")
+                        )
+                        self.location_data["price"] = estimated_price
+                        self.location_data["price_source"] = "estimated"
             
             # Track discovery with assigned location
             discovery_record = {
@@ -202,6 +220,36 @@ class LocalAgent:
         except Exception as e:
             print(f"Error extracting locations: {e}")
             return []
+    
+    def _extract_price_from_offers(self, result: Dict, item_id: str) -> Optional[float]:
+        """
+        Extract price from Beckn offers for a specific item ID.
+        
+        Args:
+            result: Beckn discovery result
+            item_id: Item ID to find price for
+            
+        Returns:
+            Price in GBP/kWh or None if not found
+        """
+        try:
+            catalogs = result.get("message", {}).get("catalogs", [])
+            
+            for catalog in catalogs:
+                offers = catalog.get("beckn:offers", [])
+                
+                for offer in offers:
+                    offer_items = offer.get("beckn:items", [])
+                    if item_id in offer_items:
+                        price_obj = offer.get("beckn:price", {})
+                        if price_obj and "value" in price_obj:
+                            return float(price_obj["value"])
+            
+            return None
+            
+        except Exception as e:
+            print(f"Error extracting price from offers: {e}")
+            return None
 
     def get_beckn_catalog(self) -> BecknCatalog:
         """
@@ -372,13 +420,26 @@ class LocalAgent:
         Returns discovery data for frontend display.
         Includes assigned location and location-specific data.
         """
+        # Create lightweight version of discovery history without full Beckn responses
+        lightweight_history = []
+        for record in self.discovery_history[-5:]:  # Last 5 discoveries
+            lightweight_history.append({
+                "timestamp": record["timestamp"],
+                "city": record["city"],
+                "query": record["query"],
+                "agent_name": record["agent_name"],
+                "region": record["region"],
+                "assigned_location": record["assigned_location"],
+                "location_data": record["location_data"]
+                # Exclude 'result' and 'discovered_locations' to reduce payload size
+            })
+        
         return {
             "agent_name": self.name,
             "region": self.region,
             "discovery_count": self.discovery_count,
             "last_discovery_time": self.last_discovery_time.isoformat() if self.last_discovery_time else None,
-            "discovery_history": self.discovery_history[-5:],  # Last 5 discoveries
-            "discovered_locations": self.discovered_locations,  # All UK locations
+            "discovery_history": lightweight_history,
             "assigned_location": self.assigned_location,  # This agent's assigned location
             "location_data": self.location_data,  # Data for assigned location only
             "job_schedule": list(self.job_schedule.values())  # Scheduled jobs for timeline

@@ -60,7 +60,7 @@ export default function DiscoveryPage() {
     try {
       // Beckn API returns catalogs as an array
       const catalogs = result?.message?.catalogs || [];
-      
+
       let totalItems = 0;
       let avgCarbon = 0;
       let avgRenewable = 0;
@@ -141,7 +141,7 @@ export default function DiscoveryPage() {
         {discoveryData?.agents.map((agent, idx) => {
           const latestDiscovery = agent.discovery_history[agent.discovery_history.length - 1];
           const catalogInfo = latestDiscovery ? extractCatalogInfo(latestDiscovery.result) : null;
-          
+
           // Get location-specific data if available
           const locationData = latestDiscovery?.location_data;
           const assignedLocation = latestDiscovery?.assigned_location || agent.agent_name;
@@ -193,7 +193,7 @@ export default function DiscoveryPage() {
                           {locationData.grid_area} • {locationData.grid_zone}
                         </div>
                       </div>
-                      
+
                       <div className="flex items-center justify-between bg-black/30 rounded-lg p-2">
                         <span className="text-gray-400 text-xs">Carbon Intensity</span>
                         <span className="text-yellow-400 font-bold">{locationData.carbon_intensity} gCO₂/kWh</span>
@@ -206,6 +206,24 @@ export default function DiscoveryPage() {
                         <span className="text-gray-400 text-xs">Available Capacity</span>
                         <span className="text-blue-400 font-bold">{locationData.available_capacity} MW</span>
                       </div>
+                      {locationData.price && (
+                        <div className="flex items-center justify-between bg-black/30 rounded-lg p-2">
+                          <span className="text-gray-400 text-xs">
+                            Cost
+                            {locationData.price_source === 'estimated' && (
+                              <span className="ml-1 text-xs text-cyan-400" title="Estimated">📊</span>
+                            )}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-purple-400 font-bold">
+                              {Number(locationData.price).toFixed(3)} GBP/kWh
+                            </span>
+                            {locationData.price_source === 'estimated' && (
+                              <span className="text-xs text-cyan-400 font-semibold" title="Estimated by DataGenerator">EST</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between bg-black/30 rounded-lg p-2">
                         <span className="text-gray-400 text-xs">Items Found</span>
                         <span className="text-green-400 font-bold">{catalogInfo?.totalItems || 0}</span>

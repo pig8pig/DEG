@@ -106,3 +106,37 @@ Provide a 2-3 sentence summary highlighting:
 Keep it concise and actionable for the regional agent."""
 
         return self.synthesize(prompt, max_tokens=200, temperature=0.5)
+
+    def synthesize_regional_ranking(self, regional_data: Dict[str, Any]) -> Optional[str]:
+        """
+        Synthesize a regional ranking based on local agent reports.
+        
+        Args:
+            regional_data: Dictionary containing regional aggregation data
+            
+        Returns:
+            Natural language ranking and summary or None if synthesis fails
+        """
+        region_name = regional_data.get("region", "Unknown")
+        agent_summaries = regional_data.get("agent_summaries", [])
+        
+        # Format summaries for the prompt
+        summaries_text = ""
+        for summary in agent_summaries:
+            summaries_text += f"\n- Agent {summary['agent_name']} ({summary['location']}): {summary['summary']}"
+            
+        # Build prompt
+        prompt = f"""You are a Regional Energy Coordinator for {region_name}.
+Your goal is to analyze reports from local agents and rank them based on the cheapest and cleanest energy available.
+
+Local Agent Reports:
+{summaries_text}
+
+Based on these reports, please:
+1. Rank the locations from best to worst for compute tasks, prioritizing low carbon intensity and cost.
+2. Provide a brief justification for the top pick.
+3. Summarize the overall energy status of the region.
+
+Format the output clearly with a numbered list for the ranking."""
+
+        return self.synthesize(prompt, max_tokens=400, temperature=0.5)

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import AgentStatus from './AgentStatus';
+import AgentInteractionHub from './AgentInteractionHub';
 import EnergyChart from './EnergyChart';
 import { Play, Pause, Activity, Terminal, Zap, Globe } from 'lucide-react';
 import Link from 'next/link';
@@ -174,6 +175,11 @@ const Dashboard = () => {
               </div>
             </div>
           </div>
+        </div>
+        
+        {/* Agent Interaction Section */}
+        <div className="mt-8">
+          <AgentInteractionHub data={status} />
         </div>
       </main>
     </div>
