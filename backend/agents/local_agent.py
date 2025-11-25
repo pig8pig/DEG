@@ -129,6 +129,24 @@ class LocalAgent:
                 
                 if assigned_loc:
                     self.location_data = assigned_loc
+                    
+                    # Try to get price from Beckn offers
+                    beckn_price = self._extract_price_from_offers(result, assigned_loc.get("item_id"))
+                    
+                    # If no Beckn price, estimate using DataGenerator
+                    if beckn_price is not None:
+                        self.location_data["price"] = beckn_price
+                        self.location_data["price_source"] = "beckn_api"
+                    else:
+                        # Estimate price using DataGenerator
+                        estimated_price = self.generator.estimate_price(
+                            timestamp=datetime.now(),
+                            location=self.assigned_location,
+                            carbon_intensity=assigned_loc.get("carbon_intensity"),
+                            renewable_mix=assigned_loc.get("renewable_mix")
+                        )
+                        self.location_data["price"] = estimated_price
+                        self.location_data["price_source"] = "estimated"
             
             # Track discovery with assigned location
             discovery_record = {
@@ -201,6 +219,36 @@ class LocalAgent:
         except Exception as e:
             print(f"Error extracting locations: {e}")
             return []
+    
+    def _extract_price_from_offers(self, result: Dict, item_id: str) -> Optional[float]:
+        """
+        Extract price from Beckn offers for a specific item ID.
+        
+        Args:
+            result: Beckn discovery result
+            item_id: Item ID to find price for
+            
+        Returns:
+            Price in GBP/kWh or None if not found
+        """
+        try:
+            catalogs = result.get("message", {}).get("catalogs", [])
+            
+            for catalog in catalogs:
+                offers = catalog.get("beckn:offers", [])
+                
+                for offer in offers:
+                    offer_items = offer.get("beckn:items", [])
+                    if item_id in offer_items:
+                        price_obj = offer.get("beckn:price", {})
+                        if price_obj and "value" in price_obj:
+                            return float(price_obj["value"])
+            
+            return None
+            
+        except Exception as e:
+            print(f"Error extracting price from offers: {e}")
+            return None
 
     def get_beckn_catalog(self) -> BecknCatalog:
         """
