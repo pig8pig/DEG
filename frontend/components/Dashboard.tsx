@@ -56,12 +56,16 @@ const Dashboard = () => {
       <header className="bg-[#161b22] border-b border-gray-800 sticky top-0 z-50 backdrop-blur-md bg-opacity-80">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-4">
-            <div className="p-2 bg-blue-600 rounded-lg shadow-lg shadow-blue-600/20">
-              <Globe className="text-white" size={24} />
+            <div className="w-14 h-14 bg-gray-800/50 rounded-2xl flex items-center justify-center border border-gray-700/50 shadow-lg shadow-blue-500/10 backdrop-blur-sm">
+              <img
+                src="/coop-logo.png"
+                alt="COOP Logo"
+                className="w-10 h-10 object-contain"
+              />
             </div>
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-white">
-                Digital Energy Grid
+                COOP
               </h1>
               <p className="text-sm text-gray-400 font-medium">Autonomous Multi-Agent Orchestration</p>
             </div>
@@ -141,11 +145,11 @@ const Dashboard = () => {
                 {status?.logs?.slice().reverse().map((log: any, i: number) => {
                   const timestamp = typeof log === 'string' ? new Date().toLocaleTimeString() : new Date(log.timestamp).toLocaleTimeString();
                   const message = typeof log === 'string' ? log : log.message;
-                  
+
                   // Extract priority from message if present (e.g., "Priority 3" or "(Priority 5)")
                   const priorityMatch = message.match(/\(Priority (\d)\)|Priority (\d)/);
                   const priority = priorityMatch ? parseInt(priorityMatch[1] || priorityMatch[2]) : null;
-                  
+
                   // Get priority color
                   const getPriorityColor = (p: number) => {
                     switch (p) {
@@ -157,11 +161,11 @@ const Dashboard = () => {
                       default: return 'text-gray-400';
                     }
                   };
-                  
+
                   // Determine if this is a success or failure message
                   const isSuccess = message.includes('✓');
                   const isFailure = message.includes('✗');
-                  
+
                   return (
                     <div key={i} className={`flex gap-3 ${priority ? getPriorityColor(priority) : 'text-gray-400'} hover:text-gray-200 transition-colors border-b border-gray-800/50 pb-1 last:border-0`}>
                       <span className="text-gray-600 select-none">[{timestamp}]</span>
@@ -176,7 +180,7 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
-        
+
         {/* Agent Interaction Section */}
         <div className="mt-8">
           <AgentInteractionHub data={status} />
