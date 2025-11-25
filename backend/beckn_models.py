@@ -36,8 +36,32 @@ class ComputeJob(BaseModel):
     power_profile: Optional[Dict[str, Any]] = None # Simplified as dict for now
     priority: int = 1
     
+    # Priority-based scheduling fields
+    submitted_at: Optional[datetime] = None  # When job was submitted
+    must_start_by: Optional[datetime] = None  # Calculated deadline based on priority
+    
     # Status
     status: str = "PENDING" # PENDING, ASSIGNED, COMPLETED, FAILED
+    
+    def calculate_deadline(self):
+        """Calculate must_start_by based on priority and submission time"""
+        if not self.submitted_at:
+            from datetime import datetime
+            self.submitted_at = datetime.now()
+        
+        # Priority-based deadline mapping (hours from submission)
+        deadline_hours = {
+            5: 1,   # Highest: 1 hour
+            4: 4,   # High: 4 hours
+            3: 12,  # Medium: 12 hours
+            2: 24,  # Low: 24 hours
+            1: 48   # Lowest: 48 hours
+        }
+        
+        from datetime import timedelta
+        hours = deadline_hours.get(self.priority, 24)
+        self.must_start_by = self.submitted_at + timedelta(hours=hours)
+        return self.must_start_by
 
 # --- Beckn Protocol Models ---
 

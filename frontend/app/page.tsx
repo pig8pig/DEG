@@ -37,19 +37,33 @@ export default function Home() {
         const locationData = agent.location_data || {};
         const jobSchedule = agent.job_schedule || [];
         
+        // Sort jobs by start time (chronological order)
+        const sortedJobs = [...jobSchedule].sort((a, b) => {
+          const timeA = new Date(a.start_time).getTime();
+          const timeB = new Date(b.start_time).getTime();
+          return timeA - timeB;
+        });
+        
         // Convert job schedule to timeline periods
-        // Each job becomes a period on the timeline
-        const jobPeriods = jobSchedule.map((job: any) => {
+        const jobPeriods = sortedJobs.map((job: any) => {
+          // Validate and parse timing data
+          const startTime = job.start_time ? new Date(job.start_time) : new Date();
+          const endTime = job.end_time 
+            ? new Date(job.end_time) 
+            : new Date(startTime.getTime() + (job.duration_hrs || 1) * 3600000);
+          
           return {
-            start: job.start_time,
-            end: job.end_time,
+            start: startTime.toISOString(),
+            end: endTime.toISOString(),
             utilization: 100, // Job is running = 100% utilization for that slot
             carbonIntensity: locationData.carbon_intensity || 0,
             renewableMix: locationData.renewable_mix || 0,
             activeJobs: [job.job_id],
             priority: job.priority,
             duration_hrs: job.duration_hrs,
-            status: job.status
+            status: job.status,
+            submitted_at: job.submitted_at,
+            must_start_by: job.must_start_by
           };
         });
         
@@ -66,7 +80,7 @@ export default function Home() {
           region: agent.region,
           lat: 0,
           lon: 0,
-          periods: jobPeriods, // Only show actual assigned jobs
+          periods: jobPeriods, // Jobs are now sorted chronologically
           currentUtilization: currentlyRunning.length > 0 ? 100 : 0
         };
       });
