@@ -106,3 +106,76 @@ Provide a 2-3 sentence summary highlighting:
 Keep it concise and actionable for the regional agent."""
 
         return self.synthesize(prompt, max_tokens=200, temperature=0.5)
+
+    def decide_job_assignment(self, job_details: Dict, agent_summaries: list, available_options: list, history: list) -> Optional[Dict]:
+        """
+        Ask LLM to decide which agent should handle the job based on summaries and quantitative data.
+        
+        Args:
+            job_details: Dict with job info (id, priority, etc)
+            agent_summaries: List of text summaries from agents
+            available_options: List of available slots with cost/carbon
+            history: List of recent assignments
+            
+        Returns:
+            Dict with 'selected_agent' and 'reasoning' or None
+        """
+        import json
+        
+        # Format options for prompt
+        options_text = ""
+        for opt in available_options:
+            options_text += f"- Agent: {opt.get('agent_name')}, Cost: ${opt.get('cost', 0):.3f}, Carbon: {opt.get('carbon', 0):.1f} gCO2/kWh\n"
+            
+        # Format summaries
+        summaries_text = ""
+        for summary in agent_summaries:
+            summaries_text += f"- {summary.get('agent_name')} ({summary.get('location')}): {summary.get('summary')}\n"
+            
+        prompt = f"""You are the Global Orchestrator for a Digital Energy Grid.
+Your task is to assign a compute job to the best available agent.
+
+JOB DETAILS:
+- Priority: {job_details.get('priority')} (1-5, 5 is highest)
+- Runtime: {job_details.get('runtime')} hours
+- Deadline: {job_details.get('deadline', 'None')}
+
+AVAILABLE AGENTS (Quantitative Data):
+{options_text}
+
+AGENT STATUS REPORTS (Qualitative Data):
+{summaries_text}
+
+RECENT ASSIGNMENTS:
+{str(history[-5:]) if history else "None"}
+
+INSTRUCTIONS:
+1. Analyze the trade-offs between Cost, Carbon, and Agent Status.
+2. For High Priority jobs, favor reliability and speed (check status reports).
+3. For Low Priority jobs, favor low cost and low carbon.
+4. Avoid overloading agents that report being busy or having issues.
+5. Select the best agent name from the Available Agents list.
+
+RESPONSE FORMAT:
+You must respond with ONLY a valid JSON object in this format:
+{{
+  "selected_agent": "Exact Agent Name",
+  "reasoning": "One sentence explaining why."
+}}
+"""
+        response = self.synthesize(prompt, max_tokens=150, temperature=0.3)
+        if not response:
+            return None
+            
+        try:
+            # Clean response to ensure valid JSON
+            cleaned = response.strip()
+            if cleaned.startswith("```json"):
+                cleaned = cleaned.split("```json")[1].split("```")[0].strip()
+            elif cleaned.startswith("```"):
+                cleaned = cleaned.split("```")[1].split("```")[0].strip()
+                
+            return json.loads(cleaned)
+        except Exception as e:
+            print(f"LLM decision parsing error: {e}")
+            return None
