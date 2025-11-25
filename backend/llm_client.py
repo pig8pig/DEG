@@ -94,7 +94,7 @@ Location Data:
 - Available Capacity: {location_data.get('available_capacity', 'N/A')} MW
 
 Energy Data:
-- Price: ${energy_data.get('price', 'N/A')}/kWh
+- Price: £{energy_data.get('price', 'N/A')}/kWh
 - Carbon Intensity: {energy_data.get('carbon_intensity', 'N/A')} gCO2/kWh
 - Renewable Mix: {energy_data.get('renewable_mix', 'N/A')}%
 

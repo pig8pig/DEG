@@ -74,12 +74,22 @@ class LocalAgent:
         """
         self.update_tick += 1
         
-        # Get fresh energy data
+        # Get fresh energy data from DataGenerator (fallback/default)
         self.energy_data = self.generator.get_energy_data(timestamp, self.region)
         
         # Perform discovery on first tick and then every 5 ticks (~10 seconds in simulation)
         if self.update_tick == 1 or self.update_tick % 5 == 0:
             self.discover_energy_slots()
+        
+        # Use location_data prices if available (from Beckn API or estimation)
+        # This ensures consistency with the Discovery page
+        if self.location_data and 'price' in self.location_data:
+            self.energy_data = {
+                'price': self.location_data.get('price', 0),
+                'carbon_intensity': self.location_data.get('carbon_intensity', 0),
+                'renewable_mix': self.location_data.get('renewable_mix', 0),
+                'timestamp': timestamp.isoformat()
+            }
         
         # Simulate tasks finishing
         finished_job_ids = []
